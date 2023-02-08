@@ -1,4 +1,4 @@
-#!/bin/bash//
+#!/bin/bash
 
 mkdir -p {/usr/local/src/lamp-20-04/etc/apache2/sites-available/,/usr/local/src/lamp-20-04/var/www/html/,/usr/local/src/lamp-20-04/opt/cloudstack/,/usr/local/src/lamp-20-04/}
 
