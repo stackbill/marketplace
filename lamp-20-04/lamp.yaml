@@ -29,8 +29,8 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/Apache-yaml/etc/apache2/sites-available/000-default.conf', confdest: '/etc/apache2/sites-available/'}
-          - { confsrc: '/usr/local/src/Apache-yaml/var/www/html/index.html', confdest: '/var/www/html/'}
+          - { confsrc: '/usr/local/src/lamp-20-04/etc/apache2/sites-available/000-default.conf', confdest: '/etc/apache2/sites-available/'}
+          - { confsrc: '/usr/local/src/lamp-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
 
       - name: Starting service apache2
         service:
@@ -149,7 +149,7 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/Apache-yaml/opt/cloudstack/lamp_cleanup.sh', confdest: '/opt/cloudstack/'}     
+          - { confsrc: '/usr/local/src/lamp-20-04/opt/cloudstack/lamp_cleanup.sh', confdest: '/opt/cloudstack/'}     
 
       - name: Adding a line for shell script
         lineinfile:
