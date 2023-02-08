@@ -1,4 +1,4 @@
-- name: Lamp Setup
+- name: LAAMP Setup
   hosts: localhost
   tasks:
       - name: Restarting sshd
