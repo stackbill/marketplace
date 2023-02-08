@@ -8,4 +8,4 @@ cd /usr/local/src/lamp-20-04/var/www/html/ && wget https://github.com/stackbill/
 
 cd /usr/local/src/lamp-20-04/opt/cloudstack/ && wget https://github.com/stackbill/marketplace/raw/main/common-files/opt/cloudstack/lamp_cleanup.sh
 
-cd /usr/local/src/lamp-20-04/ && wget https://github.com/stackbill/marketplace/raw/main/common-files/lamp.yaml 
+cd /usr/local/src/lamp-20-04/ && wget https://github.com/stackbill/marketplace/raw/main/lamp-20-04/lamp.yaml 
