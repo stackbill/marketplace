@@ -6,7 +6,7 @@ cd /usr/local/src/mysql-20-04/etc/apache2/sites-available/ && wget https://raw.g
 
 cd /usr/local/src/mysql-20-04/var/www/html/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/common-files/var/www/html/index.html
 
-cd /usr/local/src/mysql-20-04/etc/apache2/conf-enabled/ && https://raw.githubusercontent.com/stackbill/marketplace/main/common-files/etc/apache2/conf-enabled/phpmyadmin.conf
+cd /usr/local/src/mysql-20-04/etc/apache2/conf-enabled/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/common-files/etc/apache2/conf-enabled/phpmyadmin.conf
 
 cd /usr/local/src/mysql-20-04/usr/share/phpmyadmin/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/common-files/usr/share/phpmyadmin/.htaccess
 
