@@ -1,0 +1,91 @@
+- name: MongoDB Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - debug:
+          msg: "Installing MongoDB for Ubuntu."
+
+      - name: Adding Key for MongoDB
+        shell: 'wget -qO - https://www.mongodb.org/static/pgp/server-6.0.asc | apt-key add -'
+        args:
+          warn: false # set warn=false to prevent warning
+
+      - name: Adding  MongoDB’s APT repository
+        shell: 'echo "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/6.0 multiverse" | sudo tee /etc/apt/sources.list.d/mongodb-org-6.0.list'
+
+      - name: Updating the apt packages before installing
+        shell: apt -y update
+        args:
+          warn: false # set warn=false to prevent warning
+
+      - name: Installing MongoDB
+        apt:
+          name: mongodb-org
+          state: latest
+
+      - name: Taking backup of the Mongo Configuration files
+        copy:
+          src: /etc/mongod.conf
+          dest: /etc/mongod.conf-{{ansible_date_time.iso8601}}
+          remote_src: yes
+
+      - name: Replacing
+        replace:
+          path: /etc/mongod.conf
+          regexp: '#security:'
+          replace: 'security:'
+
+      - name: Security Tweaking
+        lineinfile:
+          path: /etc/mongod.conf
+          insertafter: "security:"
+          line: '  authorization: enabled'
+
+      - name: Reload daemon
+        systemd:
+          daemon_reload: yes
+
+      - name: Start the service
+        shell: "{{item}}"
+        with_items:
+          - systemctl start mongod
+          - systemctl enable mongod
+
+      - name: Displays connects to the database and displays the current version of MongoDB, server URL, and port it is listening on.
+        shell: "mongosh --eval 'db.runCommand({ connectionStatus: 1 })'"
+        register: output
+
+      - debug:
+         var: output.stdout_lines
+
+      - shell: systemctl status mongod | grep -i since
+        register: output
+
+      - debug:
+          var: output.stdout
+
+      - debug:
+          msg: "Installation Completed"
+          
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/mongodb-20-04/opt/cloudstack/cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
+          state: present   
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"  
