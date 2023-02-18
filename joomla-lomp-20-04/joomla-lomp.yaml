@@ -1,0 +1,263 @@
+- name: Joomla Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - debug:
+         msg: "Installing OpenLitespeed"
+
+      - name: Installing OpenLitespeed RPM
+        shell: wget -O - http://rpms.litespeedtech.com/debian/enable_lst_debian_repo.sh | sudo bash
+
+      - name: Installing OpenLitespeed
+        apt:
+          name: [ 'openlitespeed' , 'certbot' , 'zip' , 'unzip' ]
+          state: latest
+
+      - name: Starting service OpenLitespeed
+        service:
+          name: lsws
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status lsws | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Creating a directory for OpenLitespeed
+        ansible.builtin.file:
+          path: "{{ item }}"
+          state: directory     
+          recurse: yes
+        with_items:
+            - /var/www/html
+            - /usr/local/lsws/conf/vhosts/joomla
+
+      - name: Creating a Virtualhost file for OpenLitespeed
+        ansible.builtin.file:
+          path: /usr/local/lsws/conf/vhosts/joomla/vhconf.conf
+          state: touch     
+       
+      - name: Copying index.html file
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/joomla-lomp-20-04/var/www/html/index.html', confdest: '/var/www/html/'}  
+          - { confsrc: '/usr/local/lsws/Example/html/phpinfo.php', confdest: '/var/www/html/'}  
+
+      - name: Configuring OpenLitespeed
+        shell: "{{ item }}"
+        with_items:
+           - sed -i 's/nobody/www-data/g' /usr/local/lsws/conf/httpd_config.conf
+           - sed -i 's/nogroup/www-data/g' /usr/local/lsws/conf/httpd_config.conf
+
+      - name: Restarting OpenLitespeed
+        service:
+           name: lsws
+           state: restarted 
+           
+      - name: Installing Mariadb
+        apt:
+          name: ['mariadb-server', 'mariadb-client']
+          state: latest
+
+      - name: Starting service Mariadb
+        service:
+          name: mariadb
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status mariadb | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating mariadb password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+         var: rootpassword.stdout
+
+      - name: Storing mariadb password
+        copy:
+          dest: "/root/.mariadb_root_password"
+          content: |
+            root_mariadb_pass = "{{ rootpassword.stdout }}"
+            
+      - name: Remove anonymous users
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User=''
+        changed_when: False
+
+      - name: Disallow root login remotely
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')
+        changed_when: False
+
+      - name: Remove test database and access to it
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DROP DATABASE IF EXISTS test
+          - DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'
+        changed_when: False
+
+      - name: Reload privilege tables
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - FLUSH PRIVILEGES
+        changed_when: False
+
+      - name: Alter Password
+        shell: "{{ item }}"
+        with_items:
+          - mysql -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ rootpassword.stdout }}';"
+
+      - name: Replacing mariadb Password
+        shell: "{{ item }}"
+        with_items:
+          - sed -i 's/password =/password = {{ rootpassword.stdout }}/g' /etc/mysql/debian.cnf
+
+      - name: Restarting Mariadb
+        service:
+           name: mariadb
+           state: restarted 
+
+      - debug:
+          msg: "Mariadb root password is stored under /root/.mariadb_root_password"   
+ 
+      - name: Installing PHP
+        apt:
+          name: [ 'lsphp80' , 'lsphp80-mysql' , 'lsphp80-common' , 'lsphp80-curl' , 'lsphp80-opcache' ]
+          state: latest
+      
+      - name: Configuring OpenLitespeed
+        shell: "{{ item }}"
+        with_items:
+           - sed -i 's/lsphp74/lsphp80/g' /usr/local/lsws/conf/httpd_config.conf
+      
+      - name: Download phpmyadmin files
+        ansible.builtin.unarchive:
+          src: https://files.phpmyadmin.net/phpMyAdmin/5.2.0/phpMyAdmin-5.2.0-all-languages.tar.gz
+          dest: /usr/local/src/
+          remote_src: yes
+    
+      - name: Rename a Existing folder & Move the latest Files
+        shell: "{{ item }}"
+        with_items:
+          - 'mv /usr/local/src/phpMyAdmin-5.2.0-all-languages /var/www/phpmyadmin'
+
+      - name: Creating a tmp directory
+        ansible.builtin.file:
+          path: /var/www/phpmyadmin/tmp
+          state: directory
+          mode: '0777'
+
+      - name: Generating blowfish password
+        shell: openssl rand -base64 22
+        register: blowfish
+
+      - debug:
+         var: blowfish.stdout
+
+      - name: Download phpmyadmin files
+        shell: '{{ item }}'
+        with_items:
+             - cat /var/www/phpmyadmin/config.sample.inc.php | grep -v blowfish > /var/www/phpmyadmin/config.inc.php
+             - echo "\$cfg['blowfish_secret'] = '{{ blowfish.stdout }}' ;" >> /var/www/phpmyadmin/config.inc.php
+             
+      - name: Creates directory for joomla
+        file:
+          path: /usr/local/src/joomla/
+          state: directory
+        
+      - name: Download Joomla files
+        ansible.builtin.unarchive:
+          src: https://downloads.joomla.org/cms/joomla4/4-2-2/Joomla_4.2.2-Stable-Full_Package.tar.gz
+          dest: /usr/local/src/joomla/
+          remote_src: yes
+         
+      - name: Rename a Existing folder & Move the latest Files
+        shell: "{{ item }}"
+        with_items:
+          - 'rsync -zavh /usr/local/src/joomla/. /var/www/html/.'
+       
+      - name: Generating joomla password
+        shell: openssl rand -hex 24
+        register: joomlapassword
+
+      - debug:
+         var: joomlapassword.stdout
+
+      - name: Storing joomla password
+        copy:
+          dest: "/root/.joomla_database_details"
+          content: |
+            joomla_database_name = joomla_db          
+            joomla_database_user = joomla_user
+            joomla_user_password = "{{ joomlapassword.stdout }}"
+          
+      - name: Creating joomla configurations
+        shell: "{{ item }}"
+        with_items:
+          - mysql -e 'create database joomla_db' -u root -p{{ rootpassword.stdout }}
+          - mysql -e "CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '{{ joomlapassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "GRANT ALL PRIVILEGES ON joomla_db.* TO 'joomla_user'@'localhost';" -u root -p{{ rootpassword.stdout }}
+          
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /var/www
+          state: directory
+          recurse: yes
+          owner: www-data
+          group: www-data
+       
+      - name: Creating DB configurations for phpmyadmin
+        shell: "{{ item }}"
+        with_items:
+          - mysql -u root -p{{ rootpassword.stdout }} < /var/www/phpmyadmin/sql/create_tables.sql
+          - mysql -e "CREATE USER 'pma'@'localhost' IDENTIFIED BY 'pmapass';" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "GRANT ALL PRIVILEGES ON phpmyadmin.* TO 'pma'@'localhost' WITH GRANT OPTION;" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "FLUSH PRIVILEGES;" -u root -p{{ rootpassword.stdout }}
+          
+      - name: Restart OpenLitespeed
+        service:
+           name: lsws
+           state: restarted 
+           
+      - name: Installing postfix
+        apt:
+          name: [ 'postfix' , 'mailutils' ]
+          state: latest      
+          
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/joomla-lomp-20-04/opt/cloudstack/joomla-lomp.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/joomla-lomp.sh && /opt/cloudstack/joomla-lomp.sh"
+          state: present
+         
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
