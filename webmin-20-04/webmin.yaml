@@ -1,0 +1,82 @@
+- name: Webmin Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+ 
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Adding webmin Repo
+        lineinfile:
+          path: /etc/apt/sources.list
+          line: "deb http://download.webmin.com/download/repository sarge contrib"
+
+      - name: Installing gnupg1
+        apt:
+          name: gnupg1
+          state: latest
+
+      - name: Downloading the Webmin GPG  key
+        ansible.builtin.apt_key:
+          url: http://www.webmin.com/jcameron-key.asc
+          state: present
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+        
+      - name: Installing Webmin
+        apt:
+          name: webmin
+          state: latest
+
+      - name: Getting the status of the service
+        shell: systemctl status webmin | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating webmin root password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+         var: rootpassword.stdout
+
+      - name: Storing webmin password
+        copy:
+          dest: "/root/.webmin_root_password"
+          content: |
+            Webmin_user = root
+            Webmin_pass = "{{ rootpassword.stdout }}"
+      - name: Configuring webmin root password
+        shell: /usr/share/webmin/changepass.pl /etc/webmin root "{{ rootpassword.stdout }}"
+        
+      - name: Installing postfix
+        apt:
+          name: [ 'postfix' , 'mailutils' ]
+          state: latest      
+          
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/webmin-20-04/opt/cloudstack/webmin.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/webmin.sh && /opt/cloudstack/webmin.sh"
+          state: present  
+          
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
