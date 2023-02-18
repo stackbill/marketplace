@@ -1,0 +1,270 @@
+- name: Django Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+       
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing postgresql
+        apt:
+          name: [ 'postgresql' , 'postgresql-contrib' , 'libpq-dev' , 'curl']
+          state: latest
+
+      - name: Starting service postgresql
+        service:
+          name: postgresql
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status postgresql | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating postgresql password
+        shell: openssl rand -hex 24
+        register: postgresqlpassword
+
+      - debug:
+         var: postgresqlpassword.stdout
+
+      - name: Generating Secret Key
+        shell: openssl rand -hex 24
+        register: secretkey
+
+      - debug:
+         var: secretkey.stdout
+
+      - name: Storing postgresql password
+        copy:
+          dest: "/root/.postgresql_passwords"
+          content: |
+            DJANGO_POSTGRESS_DB = django   
+            DJANGO_POSTGRESS_DB_USER = django  			
+            DJANGO_POSTGRESS_DB_USER_PASS = "{{ postgresqlpassword.stdout }}"
+            SECRET_KEY = "{{ secretkey.stdout }}"
+      - name: Creating postgresql configurations for Django
+        shell: "{{ item }}"
+        with_items:
+          - sudo -u postgres psql -c 'create database django;'
+          - sudo -u postgres psql -c "create user django with password '{{ postgresqlpassword.stdout }}';"
+          - sudo -u postgres psql -c 'grant all privileges on database django TO django;'
+
+      - name: Generating shell user password
+        shell: openssl rand -hex 24
+        register: userpassword
+
+      - debug:
+         var: userpassword.stdout
+
+      - name: Storing shell user password
+        copy:
+          dest: "/root/.shell_user_passwords"
+          content: |
+            DJANGO_SHELL_LOGIN_USER = django
+            DJANGO_SHELL_LOGIN_USER_PASSWORD = "{{ userpassword.stdout }}"
+      - name: Creating a user for Django project
+        ansible.builtin.user:
+          name: django
+          shell: /bin/bash
+          create_home: true
+          home: "/home/django"
+          system : true
+      
+      - name: Setting password for the user
+        shell: echo "django:"{{ userpassword.stdout }}"" | chpasswd -
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /home/django
+          state: directory
+          recurse: yes
+          owner: django
+          group: django
+
+      - name: Change permission of a directory
+        ansible.builtin.file:
+          path: /home/django
+          state: directory
+          mode: '0755'
+
+      - name: Installing Django dependencies
+        apt:
+          name: [ 'python3' , 'python3-dev' , 'python3-gevent' , 'python3-netifaces' , 'python3-pip' , 'python3-psycopg2' , 'python3-setuptools' , 'python3-venv' , 'super']
+          state: latest
+
+      - name: Installing Django 
+        shell: python3 -m pip install Django=="4.1.1"
+
+      - name: Installing Django Project
+        shell: "cd /home/django && setuid django django-admin startproject django_project"
+
+      - name: Installing nginx & dependencies
+        apt:
+          name: [ 'nginx' , 'python3-certbot' , 'python3-certbot-nginx' ]
+          state: latest
+
+      - name: Starting service nginx
+        service:
+          name: nginx
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status nginx | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Removing site files
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items: 
+          - /etc/nginx/sites-available/default
+          - /etc/nginx/sites-enabled/default
+          - /var/www/html/index.nginx-debian.html
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/django-20-04/etc/nginx/sites-available/django/default', confdest: '/etc/nginx/sites-available/'}
+          - { confsrc: '/usr/local/src/django-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
+
+      - name: Creating a symlink
+        ansible.builtin.file:
+          src: "/etc/nginx/sites-available/default"
+          dest: "/etc/nginx/sites-enabled/default"
+          state: link
+
+      - name: restarting service nginx
+        service:
+          name: nginx
+          state: restarted 
+      
+      - name: Installing gunicorn & dependencies
+        apt:
+          name: [ 'gunicorn' , 'python3-gunicorn ' ]
+          state: latest
+
+      - name: Creating a gunicorn directory
+        ansible.builtin.file:
+          path: /etc/gunicorn.d/
+          state: directory
+          mode: '0755'
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/django-20-04/etc/gunicorn.d/gunicorn.py', confdest: '/etc/gunicorn.d/'}
+          - { confsrc: '/usr/local/src/django-20-04/etc/systemd/system/gunicorn.service', confdest: '/etc/systemd/system/'}
+
+      - name: rename a existing file
+        shell: mv /home/django/django_project/django_project/settings.py /home/django/django_project/django_project/settings.py.org
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/django-20-04/home/django/django_project/django_project/settings.py', confdest: '/home/django/django_project/django_project/'}          
+
+      - name: Change file ownership
+        ansible.builtin.file:
+          path: /home/django/django_project/django_project/settings.py
+          owner: django
+          group: root
+
+      - name: Creating a directory for static files
+        ansible.builtin.file:
+          path: /home/django/django_project/django_project/static/
+          state: directory
+          mode: '0755'
+
+      - name: Replace password
+        ansible.builtin.lineinfile:
+          state: present
+          dest: /home/django/django_project/django_project/settings.py
+          regexp: "PASSWORD1"
+          line: "        'PASSWORD': '{{ postgresqlpassword.stdout }}',"
+
+      - name: Replace Secret Key
+        ansible.builtin.lineinfile:
+          state: present
+          dest: /home/django/django_project/django_project/settings.py
+          regexp: "SECRET_KEY1"
+          line: "SECRET_KEY = '{{ secretkey.stdout }}'"
+
+      - name: Completing Initial Project Setup
+        shell: "{{ item }}"
+        with_items:
+          - python3 /home/django/django_project/manage.py makemigrations
+          - python3 /home/django/django_project/manage.py migrate
+
+      - name: Generating adminpanel password
+        shell: openssl rand -hex 24
+        register: adminpanelpassword
+
+      - debug:
+         var: adminpanelpassword.stdout
+
+      - name: Storing adminpanel password
+        copy:
+          dest: "/root/.adminpanel_passwords"
+          content: |
+            DJANGO_ADMIN_LOGIN_USER = django
+            DJANGO_ADMIN_LOGIN_USER_PASSWORD = "{{ adminpanelpassword.stdout }}"
+      - name: Setting up admin user
+        shell: echo "from django.contrib.auth import get_user_model; User = get_user_model(); User.objects.create_superuser('django', 'temp@example.com', '{{ adminpanelpassword.stdout }}')" | python3 "/home/django/django_project/manage.py" shell
+
+      - name: Reload gunicorn.service
+        ansible.builtin.systemd:
+          state: restarted
+          daemon_reload: yes
+          name: gunicorn.service
+
+      - name: Getting the status of the service
+        shell: systemctl status gunicorn.service | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: restarting service nginx
+        service:
+          name: nginx
+          state: restarted 
+          
+      - name: Installing postfix
+        apt:
+          name: [ 'postfix' , 'mailutils' ]
+          state: latest      
+          
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/django-20-04/opt/cloudstack/djangocleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/djangocleanup.sh && /opt/cloudstack/djangocleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
