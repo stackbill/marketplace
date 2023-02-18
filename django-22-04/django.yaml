@@ -134,8 +134,8 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/django-20-04/etc/nginx/sites-available/django/default', confdest: '/etc/nginx/sites-available/'}
-          - { confsrc: '/usr/local/src/django-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
+          - { confsrc: '/usr/local/src/django-22-04/etc/nginx/sites-available/django/default', confdest: '/etc/nginx/sites-available/'}
+          - { confsrc: '/usr/local/src/django-22-04/var/www/html/index.html', confdest: '/var/www/html/'}
 
       - name: Creating a symlink
         ansible.builtin.file:
@@ -164,8 +164,8 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/django-20-04/etc/gunicorn.d/gunicorn.py', confdest: '/etc/gunicorn.d/'}
-          - { confsrc: '/usr/local/src/django-20-04/etc/systemd/system/gunicorn.service', confdest: '/etc/systemd/system/'}
+          - { confsrc: '/usr/local/src/django-22-04/etc/gunicorn.d/gunicorn.py', confdest: '/etc/gunicorn.d/'}
+          - { confsrc: '/usr/local/src/django-22-04/etc/systemd/system/gunicorn.service', confdest: '/etc/systemd/system/'}
 
       - name: rename a existing file
         shell: mv /home/django/django_project/django_project/settings.py /home/django/django_project/django_project/settings.py.org
@@ -175,7 +175,7 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/django-20-04/home/django/django_project/django_project/settings.py', confdest: '/home/django/django_project/django_project/'}          
+          - { confsrc: '/usr/local/src/django-22-04/home/django/django_project/django_project/settings.py', confdest: '/home/django/django_project/django_project/'}          
 
       - name: Change file ownership
         ansible.builtin.file:
@@ -258,7 +258,7 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/django-20-04/opt/cloudstack/djangocleanup.sh', confdest: '/opt/cloudstack/'}     
+          - { confsrc: '/usr/local/src/django-22-04/opt/cloudstack/djangocleanup.sh', confdest: '/opt/cloudstack/'}     
 
       - name: Adding a line for shell script
         lineinfile:

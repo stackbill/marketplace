@@ -30,8 +30,8 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/nodejs-20-04/etc/nginx/sites-available/nodejs/default', confdest: '/etc/nginx/sites-available/'}
-          - { confsrc: '/usr/local/src/nodejs-20-04/var/www/html/hello.js', confdest: '/var/www/html/'}
+          - { confsrc: '/usr/local/src/nodejs-22-04/etc/nginx/sites-available/nodejs/default', confdest: '/etc/nginx/sites-available/'}
+          - { confsrc: '/usr/local/src/nodejs-22-04/var/www/html/hello.js', confdest: '/var/www/html/'}
 
       - name: Creating a symlink
         ansible.builtin.file:
@@ -141,7 +141,7 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/nodejs-20-04/opt/cloudstack/nodejscleanup.sh', confdest: '/opt/cloudstack/'}     
+          - { confsrc: '/usr/local/src/nodejs-22-04/opt/cloudstack/nodejscleanup.sh', confdest: '/opt/cloudstack/'}     
 
       - name: Adding a line for shell script
         lineinfile:
