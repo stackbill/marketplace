@@ -1,0 +1,153 @@
+- name: NodeJS Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+       
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+         
+      - debug:
+         msg: "Installing Nginx"
+
+      - name: Installing Nginx
+        apt:
+          name: nginx
+          state: latest
+
+      - name: Removing site files
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items: 
+          - /etc/nginx/sites-available/default
+          - /etc/nginx/sites-enabled/default
+          - /var/www/html/index.nginx-debian.html
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/nodejs-20-04/etc/nginx/sites-available/nodejs/default', confdest: '/etc/nginx/sites-available/'}
+          - { confsrc: '/usr/local/src/nodejs-20-04/var/www/html/hello.js', confdest: '/var/www/html/'}
+
+      - name: Creating a symlink
+        ansible.builtin.file:
+          src: "/etc/nginx/sites-available/default"
+          dest: "/etc/nginx/sites-enabled/default"
+          state: link
+
+      - name: Starting service nginx
+        service:
+          name: nginx
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status nginx | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating shell user password
+        shell: openssl rand -hex 24
+        register: userpassword
+
+      - debug:
+         var: userpassword.stdout
+
+      - name: Storing shell user password
+        copy:
+          dest: "/root/.shell_user_passwords"
+          content: |
+            NODEJS_SHELL_LOGIN_USER = nodejs
+            NODEJS_SHELL_LOGIN_USER_PASSWORD = "{{ userpassword.stdout }}"
+      - name: Creating a user for nodejs project
+        ansible.builtin.user:
+          name: nodejs
+          shell: /bin/bash
+          create_home: true
+          home: "/home/nodejs"
+          system : true
+          groups: sudo
+
+      - name: Setting password for the user
+        shell: echo "nodejs:"{{ userpassword.stdout }}"" | chpasswd -
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: "{{ item }}"
+          state: directory
+          recurse: yes
+          owner: nodejs
+          group: nodejs
+        with_items:
+            - /home/nodejs/
+            - /var/www/html/
+
+      - name: Change permission of a directory
+        ansible.builtin.file:
+          path: /home/nodejs
+          state: directory
+          mode: '0755'
+
+      - name: Checking DISTRO 
+        shell: DISTRO="$(lsb_release -s -c)" && echo $DISTRO
+        register: distro
+
+      - debug:
+            var: distro.stdout
+
+      - name: Adding source 
+        shell: "{{ item }}"
+        with_items:
+          - curl -sSL https://deb.nodesource.com/gpgkey/nodesource.gpg.key | sudo apt-key add -
+          -  echo "deb https://deb.nodesource.com/node_18.x {{ distro.stdout }} main" | sudo tee /etc/apt/sources.list.d/nodesource.list
+          -  echo "deb-src https://deb.nodesource.com/node_18.x {{ distro.stdout }} main" | sudo tee -a /etc/apt/sources.list.d/nodesource.list       
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Nodejs18
+        apt:
+          name: nodejs
+          state: latest
+
+      - name: Installing npm
+        shell: npm install pm2@latest -g --no-optional
+
+      - name: Configuring nodejs
+        shell: "{{ item }}"
+        with_items:
+          - su - nodejs -c "pm2 start /var/www/html/hello.js"
+          - sudo env "PATH=$PATH:/usr/bin" /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u nodejs --hp /home/nodejs
+          - su - nodejs -c "pm2 save"          
+
+      - name: Restarting service nginx
+        service:
+          name: nginx
+          state: restarted 
+          
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/nodejs-20-04/opt/cloudstack/nodejscleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/nodejscleanup.sh && /opt/cloudstack/nodejscleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
