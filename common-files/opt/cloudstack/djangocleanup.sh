@@ -14,9 +14,13 @@ echo
 echo -e "${RED}This message will be removed in the next login!${NC}"
 echo
 echo
+echo -e "${RED}Postgres user_password${NC}"
+echo
+cat /root/.postgresql_user_passwords
+echo
 echo -e "${RED}Django home directory "/home/django/django_project/django_project/"${NC}"
 echo
-echo -e "${RED}Django postgresql_passwords${NC}"
+echo -e "${RED}Django database_passwords${NC}"
 echo
 cat /root/.postgresql_passwords
 echo
