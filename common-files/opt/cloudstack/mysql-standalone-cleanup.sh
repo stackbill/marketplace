@@ -14,7 +14,7 @@ echo
 echo -e "${RED}This message will be removed in the next login!${NC}"
 echo
 echo
-echo -e "${RED}MySQL root password is stored below${NC}"
+echo -e "${RED}Refer to the below MySQL root password${NC}"
 echo
 cat /root/.mysql_root_password
 echo
