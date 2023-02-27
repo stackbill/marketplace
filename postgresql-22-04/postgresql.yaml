@@ -1,0 +1,81 @@
+- name: PostgreSQL Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Dependencies
+        apt:
+          name: [ 'software-properties-common', 'apt-transport-https', 'wget']
+          state: present
+
+      - name: Importing key
+        shell: "{{ item }}"
+        with_items:
+          - wget -O- https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor | sudo tee /usr/share/keyrings/postgresql.gpg
+          - echo deb [arch=amd64,arm64,ppc64el signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt/ jammy-pgdg main | sudo tee /etc/apt/sources.list.d/postgresql.list
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing postgresql
+        apt:
+          name: [ 'postgresql' , 'postgresql-client']
+          state: present
+
+      - name: Starting service postgresql
+        service:
+          name: postgresql
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status postgresql | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating postgresql password
+        shell: openssl rand -hex 24
+        register: postgresqlpassword
+
+      - debug:
+         var: postgresqlpassword.stdout
+
+      - name: Storing postgres user password
+        copy:
+          dest: "/root/.postgresql_passwords"
+          content: |
+            DJANGO_POSTGRESS_USER = postgres  			
+            DJANGO_POSTGRESS_USER_PASS = "{{ postgresqlpassword.stdout }}"
+
+      - name: Resetting postgres user password
+        shell: "{{ item }}"
+        with_items:
+          - sudo -u postgres psql -c "alter user postgres with password '{{ postgresqlpassword.stdout }}';"
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/nginx-20-04/opt/cloudstack/cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
+          state: present      
+          
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
