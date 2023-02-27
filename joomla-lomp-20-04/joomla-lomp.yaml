@@ -207,9 +207,9 @@
       - name: Creating joomla configurations
         shell: "{{ item }}"
         with_items:
-          - mysql -e 'create database joomla_db' -u root -p{{ rootpassword.stdout }}
-          - mysql -e "CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '{{ joomlapassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
-          - mysql -e "GRANT ALL PRIVILEGES ON joomla_db.* TO 'joomla_user'@'localhost';" -u root -p{{ rootpassword.stdout }}
+          - mysql -e 'create database joomla_db'
+          - mysql -e "CREATE USER 'joomla_user'@'localhost' IDENTIFIED BY '{{ joomlapassword.stdout }}';" 
+          - mysql -e "GRANT ALL PRIVILEGES ON joomla_db.* TO 'joomla_user'@'localhost';"
           
       - name: Change ownership of a directory
         ansible.builtin.file:
@@ -222,10 +222,10 @@
       - name: Creating DB configurations for phpmyadmin
         shell: "{{ item }}"
         with_items:
-          - mysql -u root -p{{ rootpassword.stdout }} < /var/www/phpmyadmin/sql/create_tables.sql
-          - mysql -e "CREATE USER 'pma'@'localhost' IDENTIFIED BY 'pmapass';" -u root -p{{ rootpassword.stdout }}
-          - mysql -e "GRANT ALL PRIVILEGES ON phpmyadmin.* TO 'pma'@'localhost' WITH GRANT OPTION;" -u root -p{{ rootpassword.stdout }}
-          - mysql -e "FLUSH PRIVILEGES;" -u root -p{{ rootpassword.stdout }}
+          - mysql < /var/www/phpmyadmin/sql/create_tables.sql
+          - mysql -e "CREATE USER 'pma'@'localhost' IDENTIFIED BY 'pmapass';"
+          - mysql -e "GRANT ALL PRIVILEGES ON phpmyadmin.* TO 'pma'@'localhost' WITH GRANT OPTION;"
+          - mysql -e "FLUSH PRIVILEGES;"
           
       - name: Restart OpenLitespeed
         service:
