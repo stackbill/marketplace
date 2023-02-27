@@ -124,6 +124,7 @@
         shell: "{{ item }}"
         with_items:
           - mysql -n --execute="GRANT ALL ON *.* TO 'dbadmin'@'localhost' IDENTIFIED BY '{{ rootpassword.stdout }}' WITH GRANT OPTION;"
+          - mysql -e "FLUSH PRIVILEGES;"
 
       - name: Restarting Mariadb
         service:
