@@ -92,6 +92,7 @@
         copy:
           dest: "/root/.mariadb_root_password"
           content: |
+            root_mariadb_user = dbadmin
             root_mariadb_pass = "{{ rootpassword.stdout }}"
             
       - name: Remove anonymous users
@@ -119,15 +120,10 @@
           - FLUSH PRIVILEGES
         changed_when: False
 
-      - name: Alter Password
+      - name: Adding database admin 
         shell: "{{ item }}"
         with_items:
-          - mysql -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED BY '{{ rootpassword.stdout }}';"
-
-      - name: Replacing mariadb Password
-        shell: "{{ item }}"
-        with_items:
-          - sed -i 's/password =/password = {{ rootpassword.stdout }}/g' /etc/mysql/debian.cnf
+          - mysql -n --execute="GRANT ALL ON *.* TO 'dbadmin'@'localhost' IDENTIFIED BY '{{ rootpassword.stdout }}' WITH GRANT OPTION;"
 
       - name: Restarting Mariadb
         service:
