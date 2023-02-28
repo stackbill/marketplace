@@ -1,0 +1,100 @@
+- name: Mariadb Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Mariadb
+        apt:
+          name: ['mariadb-server', 'mariadb-client']
+          state: latest
+
+      - name: Starting service Mariadb
+        service:
+          name: mariadb
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status mariadb | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating mariadb password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+         var: rootpassword.stdout
+
+      - name: Storing mariadb password
+        copy:
+          dest: "/root/.mariadb_root_password"
+          content: |
+            root_mariadb_user = dbadmin
+            root_mariadb_pass = "{{ rootpassword.stdout }}"
+            
+      - name: Remove anonymous users
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User=''
+        changed_when: False
+
+      - name: Disallow root login remotely
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')
+        changed_when: False
+
+      - name: Remove test database and access to it
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DROP DATABASE IF EXISTS test
+          - DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'
+        changed_when: False
+
+      - name: Reload privilege tables
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - FLUSH PRIVILEGES
+        changed_when: False
+
+      - name: Adding database admin 
+        shell: "{{ item }}"
+        with_items:
+          - mysql -n --execute="GRANT ALL ON *.* TO 'dbadmin'@'localhost' IDENTIFIED BY '{{ rootpassword.stdout }}' WITH GRANT OPTION;"
+          - mysql -e "FLUSH PRIVILEGES;"
+
+      - name: Restarting Mariadb
+        service:
+           name: mariadb
+           state: restarted 
+
+      - debug:
+          msg: "Mariadb root password is stored under /root/.mariadb_root_password"   
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/mariadb-22-04/opt/cloudstack/mariadb-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/mariadb-cleanup.sh && /opt/cloudstack/mariadb-cleanup.sh"
+          state: present
+         
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
