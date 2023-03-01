@@ -68,9 +68,9 @@
         ansible.builtin.user:
           name: nodejs
           shell: /bin/bash
-          create_home: true
+          create_home: yes
           home: "/home/nodejs"
-          system : true
+          system: yes
           groups: sudo
 
       - name: Setting password for the user

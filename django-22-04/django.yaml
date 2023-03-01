@@ -92,9 +92,9 @@
         ansible.builtin.user:
           name: django
           shell: /bin/bash
-          create_home: true
+          create_home: yes
           home: "/home/django"
-          system : true
+          system: yes
       
       - name: Setting password for the user
         shell: echo "django:"{{ userpassword.stdout }}"" | chpasswd -
