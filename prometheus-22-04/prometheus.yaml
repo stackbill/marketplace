@@ -22,6 +22,12 @@
           create_home: no
           system: yes
 
+      - name: Creating a user for node_exporter
+        ansible.builtin.user:
+          name: node_exporter
+          shell: /bin/false
+          create_home: no
+
       - name: Creating a prometheus directory
         ansible.builtin.file:
           path: "{{ item }}"
@@ -34,9 +40,12 @@
 
       - name: Download prometheus files
         ansible.builtin.unarchive:
-          src: https://github.com/prometheus/prometheus/releases/download/v2.42.0/prometheus-2.42.0.linux-amd64.tar.gz
+          src: "{{ item }}"
           dest: /usr/local/src/
           remote_src: yes
+        with_items:
+          - https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz
+          - https://github.com/prometheus/prometheus/releases/download/v2.42.0/prometheus-2.42.0.linux-amd64.tar.gz
 
       - name: Copy a prometheus configuration file
         ansible.builtin.copy:
@@ -88,20 +97,6 @@
           - /etc/prometheus/consoles
           - /etc/prometheus/console_libraries
           - /var/lib/prometheus
-
-# Configuring Node Exporter
-
-      - name: Download prometheus files
-        ansible.builtin.unarchive:
-          src: https://github.com/prometheus/node_exporter/releases/download/v1.5.0/node_exporter-1.5.0.linux-amd64.tar.gz
-          dest: /usr/local/src/
-          remote_src: yes
-
-      - name: Creating a user for Prometheus project
-        ansible.builtin.user:
-          name: node_exporter
-          shell: /bin/false
-          create_home: no
 
       - name: Reload Daemon
         ansible.builtin.systemd:
