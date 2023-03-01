@@ -1,0 +1,24 @@
+[Unit]
+Description=Prometheus Node Exporter
+After=network.target
+
+[Service]
+Type=simple
+User=node_exporter
+Group=prometheus
+ExecStart=/usr/local/bin/node_exporter \
+    --web.listen-address=localhost:9100
+
+SyslogIdentifier=node_exporter
+Restart=always
+
+PrivateTmp=yes
+ProtectHome=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectControlGroups=true
+ProtectKernelModules=true
+ProtectKernelTunables=yes
+
+[Install]
+WantedBy=multi-user.target
