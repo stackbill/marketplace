@@ -1,0 +1,231 @@
+- name: Zabbix Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - debug:
+         msg: "Installing Apache"
+
+      - name: Installing apache
+        apt:
+          name: [ 'apache2' , 'python3-certbot-apache' ]
+          state: latest
+
+      - name: Removing site files
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items: 
+          - /etc/apache2/sites-available/000-default.conf
+          - /var/www/html/index.html
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/zabbix-22-04/etc/apache2/sites-available/000-default.conf', confdest: '/etc/apache2/sites-available/'}
+          - { confsrc: '/usr/local/src/zabbix-22-04/var/www/html/index.html', confdest: '/var/www/html/'}
+
+      - name: Starting service apache2
+        service:
+          name: apache2
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status apache2 | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - debug:
+         msg: "Installing Mysql"
+
+      - name: Installing mysql
+        apt:
+          name: mysql-server
+          state: latest
+
+      - name: Starting service mysql
+        service:
+          name: mysql
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status mysql | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating root password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+         var: rootpassword.stdout
+
+      - name: Storing mysql password
+        copy:
+          dest: "/root/.mysql_root_password"
+          content: |
+            root_mysql_pass = "{{ rootpassword.stdout }}"
+
+      - name: Remove anonymous users
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User=''
+        changed_when: False
+
+      - name: Disallow root login remotely
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')
+        changed_when: False
+
+      - name: Remove test database and access to it
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DROP DATABASE IF EXISTS test
+          - DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'
+        changed_when: False
+
+      - name: Reload privilege tables
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - FLUSH PRIVILEGES
+        changed_when: False
+
+      - name: Alter Password
+        shell: "{{ item }}"
+        with_items:
+          - mysql -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ rootpassword.stdout }}';"
+
+      - debug:
+          msg: "Mysql root password is stored under /root/.mysql_root_password"
+
+      # - name: Change login type
+      #   shell: 'mysql -u root -p{{ rootpassword.stdout }} -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket;" > /dev/null 2>&1'
+
+      - name: Zabbix file 
+        ansible.builtin.get_url:
+          url: https://repo.zabbix.com/zabbix/6.2/ubuntu/pool/main/z/zabbix-release/zabbix-release_6.2-2%2Bubuntu22.04_all.deb
+          dest: /usr/local/src/
+
+      - shell: dpkg -i /usr/local/src/zabbix-release_6.2-2%2Bubuntu22.04_all.deb
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Generating database password for zabbix
+        shell: openssl rand -hex 24
+        register: zabbixpassword
+
+      - debug:
+         var: zabbixpassword.stdout
+
+      - name: Storing Zabbix password
+        copy:
+          dest: "/root/.zabbix_database_credentials"
+          content: |
+            zabbix_database = zabbix
+            zabbix_user     = zabbix
+            zabbix_pass     = "{{ zabbixpassword.stdout }}"
+
+      - name: Installing zabbix
+        apt:
+          name: ['zabbix-server-mysql', 'zabbix-frontend-php', 'zabbix-apache-conf', 'zabbix-sql-scripts', 'zabbix-agent']
+          state: latest
+
+      - name: Creating Zabbix database
+        shell: "{{ item }}"
+        with_items:
+          - mysql -e 'create database zabbix character set utf8mb4 collate utf8mb4_bin;' -u root -p{{ rootpassword.stdout }}
+          - mysql -e "create user zabbix@localhost identified by '{{ zabbixpassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "grant all privileges on zabbix.* to zabbix@localhost;" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "set global log_bin_trust_function_creators = 1;" -u root -p{{ rootpassword.stdout }}
+
+      - name: Import zabbix database
+        shell: "{{ item }}"
+        with_items:
+          - zcat /usr/share/zabbix-sql-scripts/mysql/server.sql.gz | mysql --default-character-set=utf8mb4 -u zabbix -p{{ zabbixpassword.stdout }} zabbix
+          - mysql -e "set global log_bin_trust_function_creators = 0;" -u root -p{{ rootpassword.stdout }}
+
+      - name: Replacing DB password
+        shell: "sed -i 's/# DBPassword=/DBPassword={{ zabbixpassword.stdout }}/g' /etc/zabbix/zabbix_server.conf"
+
+      - name: Generating password for zabbix Admin Panel
+        shell: openssl rand -hex 24
+        register: zabbixadmpassword
+
+      - debug:
+         var: zabbixadmpassword.stdout
+
+      - name: Storing Zabbix Admin password
+        copy:
+          dest: "/root/.zabbix_admin_credentials"
+          content: |
+            zabbix_user = Admin
+            zabbix_pass = "{{ zabbixadmpassword.stdout }}"
+
+      - name: Generating bycrypt
+        shell:  htpasswd -nbBC 10 Admin {{ zabbixadmpassword.stdout }} | grep -i admin | cut -d ":" -f 2
+        register: admincrypt
+
+      - name: Updating the zabbix admin password
+        shell: "{{ item }}"
+        with_items:
+          - mysql -e 'update zabbix.users set passwd="{{ admincrypt.stdout }}" where username="Admin";' -u root -p{{ rootpassword.stdout }}
+      
+      - name: Installing language
+        apt:
+          name: language-pack-en
+          state: latest
+
+      - name: Enable services and start
+        ansible.builtin.systemd:
+          name: "{{ item }}"
+          state: started
+          enabled: true
+        with_items:
+          - zabbix-server
+          - zabbix-agent
+          - apache2
+
+      - name: Restarting services
+        service:
+           name: "{{ item }}"
+           state: restarted 
+        with_items:
+          - zabbix-server
+          - zabbix-agent
+          - apache2
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/zabbix-22-04/opt/cloudstack/zabbix_cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/zabbix_cleanup.sh && /opt/cloudstack/zabbix_cleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
+
