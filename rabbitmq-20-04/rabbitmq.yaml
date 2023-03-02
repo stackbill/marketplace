@@ -1,0 +1,94 @@
+- name: RabbitMQ Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Dependencies
+        apt:
+          name: [ 'curl', 'software-properties-common', 'apt-transport-https', 'lsb-release' ]
+          state: latest
+
+      - name: Import Erlang GPG Key and repo
+        shell: "{{ item }}"
+        with_items:
+          - curl -fsSL https://packages.erlang-solutions.com/ubuntu/erlang_solutions.asc | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/erlang.gpg
+          - echo "deb https://packages.erlang-solutions.com/ubuntu $(lsb_release -cs) contrib" | sudo tee /etc/apt/sources.list.d/erlang.list
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Erlang
+        apt:
+          name: erlang
+          state: present
+
+      - name: Add RabbitMQ Repository
+        shell: curl -s https://packagecloud.io/install/repositories/rabbitmq/rabbitmq-server/script.deb.sh | sudo bash
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing rabbitmq
+        apt:
+          name: rabbitmq-server
+          state: present
+
+      - name: Enable the RabbitMQ Management Web dashboard
+        shell: sudo rabbitmq-plugins enable rabbitmq_management
+
+      - name: Restarting service rabbitmq
+        service:
+          name: rabbitmq-server
+          state: restarted 
+
+      - name: Generating Admin password
+        shell: openssl rand -hex 24
+        register: adminpassword
+
+      - debug:
+         var: adminpassword.stdout
+
+      - name: Storing mysql password
+        copy:
+         dest: "/root/.admin_password"
+         content: |
+           rabbitmq_user = mqadmin
+           rabbitmq_pass = "{{ adminpassword.stdout }}"
+
+      - name: Adding Admin User
+        shell: "{{ item }}"
+        with_items:
+          - sudo rabbitmqctl add_user mqadmin {{ adminpassword.stdout }}
+          - sudo rabbitmqctl set_user_tags mqadmin administrator
+          - sudo rabbitmqctl set_permissions -p / mqadmin ".*" ".*" ".*" 
+          - sudo rabbitmqctl delete_user guest
+          - sudo rabbitmq-diagnostics
+        ignore_errors: true
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/rabbitmq-20-04/opt/cloudstack/rabbitmq-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/rabbitmq-cleanup.sh && /opt/cloudstack/rabbitmq-cleanup.sh"
+          state: present      
+          
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
