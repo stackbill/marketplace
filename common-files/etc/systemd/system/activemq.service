@@ -1,0 +1,17 @@
+[Unit]
+Description=Apache ActiveMQ Message Broker
+After=network-online.target
+
+[Service]
+Type=forking
+
+User=activemq
+Group=activemq
+
+WorkingDirectory=/opt/apache-activemq-5.17.4/bin
+ExecStart=/opt/apache-activemq-5.17.4/bin/activemq start
+ExecStop=/opt/apache-activemq-5.17.4/bin/activemq stop
+Restart=on-abort
+
+[Install]
+WantedBy=multi-user.target

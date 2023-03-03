@@ -1,0 +1,108 @@
+- name: ActiveMQ Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+       
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Java
+        apt:
+          name: default-jdk 
+          state: latest
+
+      - name: Creating a group for activemq 
+        group:
+          name: activemq
+          state: present
+          system: yes
+
+      - name: Creating a user for activemq 
+        ansible.builtin.user:
+          name: activemq
+          shell: /usr/sbin/nologin
+          groups: activemq
+          create_home: no
+          system: yes
+
+      - name: Download activemq files
+        ansible.builtin.unarchive:
+          src: https://dlcdn.apache.org/activemq/5.17.4/apache-activemq-5.17.4-bin.tar.gz
+          dest: /opt/
+          remote_src: yes
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /opt/apache-activemq-5.17.4
+          state: directory
+          recurse: yes
+          owner: activemq
+          group: activemq
+
+      - name: Generating activemq password
+        shell: openssl rand -hex 24
+        register: activemqadminpassword
+
+      - debug:
+         var: activemqadminpassword.stdout
+
+      - name: Storing activemq password
+        copy:
+         dest: "/root/.activemq_admin_password"
+         content: |
+           activemq_user = admin
+           activemq_pass = "{{ activemqadminpassword.stdout }}"
+
+      - name: Replacing localhost in the configuration file
+        shell: "{{ item }}"
+        with_items:
+          - "sed -i 's/127.0.0.1/0.0.0.0/g' /opt/apache-activemq-5.17.4/conf/jetty.xml"
+          - "sed -i 's/admin: admin, admin/admin: {{ activemqadminpassword.stdout }}, admin/g' /opt/apache-activemq-5.17.4/conf/jetty-realm.properties"
+          - "sed -i 's/user: user, user//g' /opt/apache-activemq-5.17.4/conf/jetty-realm.properties"
+
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/activemq-22-04/etc/systemd/system/activemq.service', confdest: '/etc/systemd/system/'}     
+
+      - name: Reload Daemon
+        ansible.builtin.systemd:
+          daemon_reload: true
+
+      - name: Enable activemq
+        ansible.builtin.systemd:
+          name: activemq.service
+          state: started
+          enabled: true
+
+      - name: Getting the status of the service
+        shell: systemctl status activemq.service  | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/activemq-22-04/opt/cloudstack/activemq-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/activemq-cleanup.sh && /opt/cloudstack/activemq-cleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
