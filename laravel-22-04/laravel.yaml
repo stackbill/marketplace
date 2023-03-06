@@ -1,0 +1,250 @@
+- name: Laravel Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - debug:
+         msg: "Installing Nginx"
+
+      - name: Installing Nginx
+        apt:
+          name: [ 'nginx', 'python3-certbot-nginx', 'zip', 'unzip']
+          state: latest
+
+      - name: Removing site files
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items: 
+          - /etc/nginx/sites-available/default
+          - /etc/nginx/sites-enabled/default
+          - /var/www/html/index.nginx-debian.html
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+          remote_src: yes
+        with_items: 
+          - { confsrc: '/usr/local/src/laravel-22-04/etc/nginx/sites-available/laravel', confdest: '/etc/nginx/sites-available/'}
+          - { confsrc: '/usr/local/src/laravel-22-04/var/www/html/index.html', confdest: '/var/www/html/'}
+
+      - name: Creating a symlink
+        ansible.builtin.file:
+          src: "/etc/nginx/sites-available/laravel"
+          dest: "/etc/nginx/sites-enabled/laravel"
+          state: link
+
+      - name: Starting service nginx
+        service:
+          name: nginx
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status nginx | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - debug:
+         msg: "Installing Mysql"
+
+      - name: Installing mysql
+        apt:
+          name: mysql-server
+          state: latest
+
+      - name: Starting service mysql
+        service:
+          name: mysql
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status mysql | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating root password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+         var: rootpassword.stdout
+
+      - name: Storing mysql password
+        copy:
+          dest: "/root/.mysql_root_password"
+          content: |
+            root_mysql_pass = "{{ rootpassword.stdout }}"
+            
+      - name: Remove anonymous users
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User=''
+        changed_when: False
+
+      - name: Disallow root login remotely
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')
+        changed_when: False
+
+      - name: Remove test database and access to it
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DROP DATABASE IF EXISTS test
+          - DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'
+        changed_when: False
+
+      - name: Reload privilege tables
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - FLUSH PRIVILEGES
+        changed_when: False
+
+      - name: Alter Password
+        shell: "{{ item }}"
+        with_items:
+          - mysql -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ rootpassword.stdout }}';"
+
+      - debug:
+          msg: "Mysql root password is stored under /root/.mysql_root_password"
+
+      # - name: Change login type
+      #   shell: 'mysql -u root -p{{ rootpassword.stdout }} -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket;" > /dev/null 2>&1'
+
+      - debug:
+         msg: "Installing PHP"
+
+      - name: Installation install software-properties-common
+        apt: name=software-properties-common
+      
+      - name: "Repo PHP 8.2"
+        apt_repository:
+          repo="ppa:ondrej/php"
+        
+      - name: Installation PHP
+        apt: 
+          name: php8.2-fpm
+          state: latest
+
+      - shell: php -v
+        register: phpversion
+
+      - debug:
+          var: phpversion.stdout_lines 
+
+      - name: Installing PHP dependencies
+        apt:
+          name: [ 'php8.2-curl', 'php8.2-xml', 'php8.2-zip', 'php8.2-pdo-mysql', 'php8.2-mbstring', 'php8.2-gd']
+          state: latest
+
+      - name: Installing Composer
+        shell: "{{ item }}"
+        with_items:
+          - cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
+
+      - name: Copy Composer file
+        copy:
+          src: /usr/local/src/composer.phar
+          dest: /usr/local/bin/composer
+          remote_src: yes
+
+      - name: Setting permission for composer
+        ansible.builtin.file:
+          path: /usr/local/bin/composer
+          mode: '0755'
+
+      - name: Generating shell user password
+        shell: openssl rand -hex 24
+        register: userpassword
+
+      - debug:
+         var: userpassword.stdout
+
+      - name: Storing shell user password
+        copy:
+          dest: "/root/.shell_user_passwords"
+          content: |
+            LARAVEL_SHELL_LOGIN_USER = laravel
+            LARAVEL_SHELL_LOGIN_USER_PASSWORD = "{{ userpassword.stdout }}"
+
+      - name: Creating a user for laravel project
+        ansible.builtin.user:
+          name: laravel
+          shell: /bin/bash
+          create_home: yes
+          home: "/home/laravel"
+
+      - name: Setting password for the user
+        shell: echo "laravel:"{{ userpassword.stdout }}"" | chpasswd -
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /var/www/
+          state: directory
+          recurse: yes
+          owner: laravel
+          group: laravel
+   
+      - name: Installing Laravel and Configuring
+        shell: "{{ item }}"
+        with_items:
+          - runuser -u laravel composer create-project laravel/laravel /var/www/laravel
+          - runuser -u laravel php /var/www/laravel/artisan key:generate
+          - sed -i 's/APP_ENV=local/APP_ENV=production/g' /var/www/laravel/.env
+          - sed -i 's/APP_DEBUG=true/APP_DEBUG=false/g' /var/www/laravel/.env
+
+      - name: Generating laravel password
+        shell: openssl rand -hex 24
+        register: laravelpassword
+
+      - debug:
+         var: laravelpassword.stdout
+
+      - name: Storing laravel password
+        copy:
+          dest: "/root/.laravel_database_details"
+          content: |
+            laravel_database_name = laravel          
+            laravel_database_user = laravel_user
+            laravel_user_password = "{{ laravelpassword.stdout }}"
+          
+      - name: Creating laravel configurations
+        shell: "{{ item }}"
+        with_items:
+          - mysql -e 'CREATE DATABASE laravel DEFAULT CHARACTER SET utf8 COLLATE utf8_unicode_ci;' -u root -p{{ rootpassword.stdout }}
+          - mysql -e "CREATE USER 'laravel_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ laravelpassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "GRANT ALL ON laravel.* TO 'laravel_user'@'localhost';" -u root -p{{ rootpassword.stdout }}
+          - sed -i "s/^DB_PASSWORD=/DB_PASSWORD={{ laravelpassword.stdout }}/g" /var/www/laravel/.env
+          - sed -i "s/^DB_USERNAME=root/DB_USERNAME=laravel_user/g" /var/www/laravel/.env
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+          remote_src: yes
+        with_items: 
+          - { confsrc: '/usr/local/src/laravel-22-04/opt/cloudstack/laravel-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/laravel-cleanup.sh && /opt/cloudstack/laravel-cleanup.sh"
+          state: present    
+      
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
