@@ -147,22 +147,6 @@
           name: [ 'php8.2-curl', 'php8.2-xml', 'php8.2-zip', 'php8.2-pdo-mysql', 'php8.2-mbstring', 'php8.2-gd']
           state: latest
 
-      - name: Installing Composer
-        shell: "{{ item }}"
-        with_items:
-          - cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
-
-      - name: Copy Composer file
-        copy:
-          src: /usr/local/src/composer.phar
-          dest: /usr/local/bin/composer
-          remote_src: yes
-
-      - name: Setting permission for composer
-        ansible.builtin.file:
-          path: /usr/local/bin/composer
-          mode: '0755'
-
       - name: Generating shell user password
         shell: openssl rand -hex 24
         register: userpassword
@@ -194,6 +178,22 @@
           recurse: yes
           owner: laravel
           group: laravel
+          
+      - name: Installing Composer
+        shell: "{{ item }}"
+        with_items:
+          - cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
+
+      - name: Copy Composer file
+        copy:
+          src: /usr/local/src/composer.phar
+          dest: /usr/local/bin/composer
+          remote_src: yes
+
+      - name: Setting permission for composer
+        ansible.builtin.file:
+          path: /usr/local/bin/composer
+          mode: '0755'
    
       - name: Installing Laravel and Configuring
         shell: "{{ item }}"
