@@ -180,9 +180,8 @@
           group: laravel
           
       - name: Installing Composer
-        shell: "{{ item }}"
-        with_items:
-          - cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
+        shell: cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
+        ignore_errors: true
 
       - name: Copy Composer file
         copy:
