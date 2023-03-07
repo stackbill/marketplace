@@ -180,11 +180,11 @@
           group: laravel
           
       - name: Installing Composer
-        shell: chmod +x /usr/local/src/composer.sh && /usr/local/src/composer.sh
+        shell: chmod +x /usr/local/src/laravel-22-04/composer.sh && /usr/local/src/laravel-22-04/composer.sh
 
       - name: Copy Composer file
         copy:
-          src: /root/composer.phar
+          src: /usr/local/src/laravel-22-04/composer.phar
           dest: /usr/local/bin/composer
           remote_src: yes
 
