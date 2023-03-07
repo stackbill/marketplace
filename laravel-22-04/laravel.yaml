@@ -180,12 +180,12 @@
           group: laravel
           
       - name: Installing Composer
-        shell: cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
+        shell: curl -sS https://getcomposer.org/installer | php
         ignore_errors: true
 
       - name: Copy Composer file
         copy:
-          src: /usr/local/src/composer.phar
+          src: /root/composer.phar
           dest: /usr/local/bin/composer
           remote_src: yes
 
