@@ -41,6 +41,10 @@ history -c
 cat /dev/null > /root/.bash_history
 unset HISTFILE
 
+usermod -a -G laravel www-data
+
+chmod -R 775 /var/www/html/laravelapp/storage
+
 # Setup Laravel on firstlogin
 echo "--------------------------------------------------"
 echo "This setup requires a domain name.  If you do not have one yet, you may"
@@ -65,7 +69,7 @@ done
 
 sed -i "s/DOMAIN/$dom/g"  /etc/nginx/sites-enabled/laravel
 
-systemctl restart nginx
+systemctl restart nginx.service php8.2-fpm.service
 
 # Set default PHP version
 update-alternatives --set php /usr/bin/php8.2
