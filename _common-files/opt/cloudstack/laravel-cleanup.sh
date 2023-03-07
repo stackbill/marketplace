@@ -43,7 +43,7 @@ unset HISTFILE
 
 usermod -a -G laravel www-data
 
-chmod -R 775 /var/www/html/laravelapp/storage
+chmod -R 775 /var/www/laravel/storage
 
 # Setup Laravel on firstlogin
 echo "--------------------------------------------------"
