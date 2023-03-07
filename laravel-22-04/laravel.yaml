@@ -183,6 +183,10 @@
         shell: curl -sS https://getcomposer.org/installer | php
         ignore_errors: true
 
+      - name: Installing Composer
+        shell: curl -sS https://getcomposer.org/installer | php
+        ignore_errors: true
+        
       - name: Copy Composer file
         copy:
           src: /root/composer.phar
