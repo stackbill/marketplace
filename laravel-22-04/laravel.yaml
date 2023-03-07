@@ -180,14 +180,11 @@
           group: laravel
           
       - name: Installing Composer
-        shell: "{{ item }}"
-        with_items:
-          - export COMPOSER_HOME="$HOME/.config/composer";
-          - cd /usr/local/src/ && curl -sS https://getcomposer.org/installer | php && cd
+        shell: chmod +x /usr/local/src/laravel-22-04/composer.sh && /usr/local/src/laravel-22-04/composer.sh
 
       - name: Copy Composer file
         copy:
-          src: /usr/local/src/composer.phar
+          src: /usr/local/src/laravel-22-04/composer.phar
           dest: /usr/local/bin/composer
           remote_src: yes
 
