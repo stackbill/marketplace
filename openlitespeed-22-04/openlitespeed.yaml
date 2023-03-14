@@ -1,0 +1,85 @@
+- name: Openlitespeed Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - debug:
+         msg: "Installing OpenLitespeed"
+
+      - name: Installing OpenLitespeed RPM
+        shell: wget -O - http://rpms.litespeedtech.com/debian/enable_lst_debian_repo.sh | sudo bash
+
+      - name: Installing OpenLitespeed
+        apt:
+          name: openlitespeed
+          state: latest
+
+      - name: Starting service OpenLitespeed
+        service:
+          name: lsws
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status lsws | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Creating a directory for OpenLitespeed
+        ansible.builtin.file:
+          path: "{{ item }}"
+          state: directory     
+          recurse: yes
+        with_items:
+            - /var/www/html
+            - /usr/local/lsws/conf/vhosts/openlitespeed
+
+      - name: Creating a Virtualhost file for OpenLitespeed
+        ansible.builtin.file:
+          path: /usr/local/lsws/conf/vhosts/openlitespeed/vhconf.conf
+          state: touch     
+       
+      - name: Copying index.html file
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/openlitespeed-22-04/var/www/html/index.html', confdest: '/var/www/html/'}  
+
+      - name: Configuring OpenLitespeed
+        shell: "{{ item }}"
+        with_items:
+           - sed -i 's/nobody/www-data/g' /usr/local/lsws/conf/httpd_config.conf
+           - sed -i 's/nogroup/www-data/g' /usr/local/lsws/conf/httpd_config.conf
+
+      - name: Restarting OpenLitespeed
+        service:
+           name: lsws
+           state: restarted 
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/openlitespeed-22-04/opt/cloudstack/openlitespeed-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/openlitespeed-cleanup.sh && /opt/cloudstack/openlitespeed-cleanup.sh"
+          state: present      
+          
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
