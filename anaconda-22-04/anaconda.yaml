@@ -37,7 +37,7 @@
       - name: Setting password for the user
         shell: echo "aconda:"{{ userpassword.stdout }}"" | chpasswd -
 
-      - name: curl command
+      - name: Downloading Anaconda shell file
         uri:
           url: 'https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-x86_64.sh'
           method: GET
