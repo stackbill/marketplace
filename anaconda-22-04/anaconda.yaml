@@ -1,0 +1,67 @@
+- name: Anaconda Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Generating shell user password
+        shell: openssl rand -hex 24
+        register: userpassword
+
+      - debug:
+         var: userpassword.stdout
+
+      - name: Storing shell user password
+        copy:
+          dest: "/root/.shell_user_passwords"
+          content: |
+            ANACONDA_SHELL_LOGIN_USER = aconda
+            ANACONDA_SHELL_LOGIN_USER_PASSWORD = "{{ userpassword.stdout }}"
+
+      - name: Creating a user for Anaconda project
+        ansible.builtin.user:
+          name: aconda
+          shell: /bin/bash
+          create_home: yes
+          home: "/home/aconda"
+
+      - name: Setting password for the user
+        shell: echo "aconda:"{{ userpassword.stdout }}"" | chpasswd -
+
+      - name: curl command
+        uri:
+          url: 'https://repo.anaconda.com/archive/Anaconda3-2021.11-Linux-x86_64.sh'
+          method: GET
+          dest: /usr/local/src/anaconda.sh
+
+      - name: Installing Anaconda
+        shell: "{{ item }}"
+        with_items:
+          - sha256sum /usr/local/src/anaconda.sh
+          - chmod +x /usr/local/src/anaconda.sh
+          - runuser -l aconda -c "( echo ; echo yes ; echo /home/aconda/anaconda ; echo yes ) |  bash /usr/local/src/anaconda.sh"
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/anaconda-22-04/opt/cloudstack/anaconda-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/anaconda-cleanup.sh && /opt/cloudstack/anaconda-cleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
