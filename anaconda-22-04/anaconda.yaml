@@ -8,6 +8,11 @@
         ansible.builtin.apt:
           update_cache: yes
 
+      - name: Removing shell files
+        file:
+          path: /usr/local/src/anaconda.sh
+          state: absent
+
       - name: Generating shell user password
         shell: openssl rand -hex 24
         register: userpassword
