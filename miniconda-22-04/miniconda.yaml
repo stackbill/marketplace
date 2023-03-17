@@ -1,0 +1,67 @@
+- name: Miniconda Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Generating shell user password
+        shell: openssl rand -hex 24
+        register: userpassword
+
+      - debug:
+         var: userpassword.stdout
+
+      - name: Storing shell user password
+        copy:
+          dest: "/root/.shell_user_passwords"
+          content: |
+            MINICONDA_SHELL_LOGIN_USER = mconda
+            MINICONDA_SHELL_LOGIN_USER_PASSWORD = "{{ userpassword.stdout }}"
+
+      - name: Creating a user for Miniconda project
+        ansible.builtin.user:
+          name: mconda
+          shell: /bin/bash
+          create_home: yes
+          home: "/home/mconda"
+
+      - name: Setting password for the user
+        shell: echo "mconda:"{{ userpassword.stdout }}"" | chpasswd -
+
+      - name: Downloading Miniconda shell file
+        uri:
+          url: 'https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh'
+          method: GET
+          dest: /usr/local/src/
+
+      - name: Installing Miniconda
+        shell: "{{ item }}"
+        with_items:
+          - sha256sum /usr/local/src/Miniconda3-latest-Linux-x86_64.sh
+          - chmod +x /usr/local/src/Miniconda3-latest-Linux-x86_64.sh
+          - runuser -l mconda -c "( echo ; echo yes ; echo /home/mconda/miniconda ; echo yes ) |  bash /usr/local/src/Miniconda3-latest-Linux-x86_64.sh"
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/miniconda-22-04/opt/cloudstack/miniconda-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/miniconda-cleanup.sh && /opt/cloudstack/miniconda-cleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
