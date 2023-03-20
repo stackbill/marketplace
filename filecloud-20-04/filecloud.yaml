@@ -1,0 +1,139 @@
+- name: Filecloud Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Add an Apt signing key
+        ansible.builtin.apt_key:
+          url: "{{ item }}"
+          state: present
+        with_items:
+          - https://repo.filecloudlabs.com/static/pgp/filecloud.asc 
+          - https://www.mongodb.org/static/pgp/server-4.4.asc
+
+      - name: Add filecloud Repo
+        ansible.builtin.apt_repository:
+          repo: "deb [ arch=amd64 ] https://repo.filecloudlabs.com/apt/ubuntu focal/filecloud/22.1 main"
+          state: present
+          filename: /etc/apt/sources.list.d/filecloud
+
+      - name: Add mongodb Repo
+        ansible.builtin.apt_repository:
+          repo: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/4.4 multiverse"
+          state: present
+          filename: /etc/apt/sources.list.d/mongodb-org-4.4
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing apache and mongodb
+        apt:
+          name: "{{ item }}"
+          state: present
+        with_items:
+          - apache2
+          - mongodb-org 
+     
+      - name: Enable services and start
+        ansible.builtin.systemd:
+          name: "{{ item }}"
+          state: started
+          enabled: true
+        with_items:
+          - apache2
+          - mongod
+
+      - name: Getting the status of the Apache
+        shell: systemctl status apache2 | grep 'since'
+        register: apachestatus
+
+      - debug:
+          var: apachestatus.stdout 
+
+      - name: Getting the status of the Mongodb
+        shell: systemctl status mongod | grep 'since'
+        register: mongodstatus
+
+      - debug:
+          var: mongodstatus.stdout 
+
+      - name: Installing php8.1
+        apt:
+          name: php8.1*
+          state: present
+          install_recommends: true 
+
+      - name: Installing filecloud
+        apt:
+          name: filecloud
+          state: present
+        environment:
+          ACCEPT_EULA: Y
+
+      - name: Remove directory install
+        file:
+          path: /var/www/html/install/
+          state: absent
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /root/
+          state: directory
+          recurse: yes
+          owner: root
+          group: root
+
+      - name: Generating Filecloud admin password
+        shell: openssl rand -hex 24
+        register: adminpassword
+
+      - debug:
+         var: adminpassword.stdout
+
+      - name: Storing Filecloud Admin login Credentials
+        copy:
+          dest: "/root/.filecloud_admin_credentials"
+          content: |
+            username = admin
+            password = "{{ adminpassword.stdout }}"
+
+      - name: Replacing Admin Password
+        replace:
+          path: /var/www/html/config/cloudconfig.php
+          regexp: '"password"'
+          replace: '"{{ adminpassword.stdout }}"'
+
+      - name: Restarting service mongod
+        service:
+          name: "{{ item }}"
+          state: restarted 
+        with_items:
+          - apache2
+          - mongod
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/filecloud-20-04/opt/cloudstack/filecloud-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/filecloud-cleanup.sh && /opt/cloudstack/filecloud-cleanup.sh"
+          state: present    
+      
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
