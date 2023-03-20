@@ -35,7 +35,7 @@
       - name: Installing apache and mongodb
         apt:
           name: [ 'apache2', 'mongodb-org' ]
-          state: present
+          state: latest
      
       - name: Enable services and start
         ansible.builtin.systemd:
@@ -63,13 +63,13 @@
       - name: Installing php8.1
         apt:
           name: php8.1*
-          state: present
+          state: latest
           install_recommends: true 
 
       - name: Installing filecloud
         apt:
           name: filecloud
-          state: present
+          state: latest
         environment:
           ACCEPT_EULA: Y
 
