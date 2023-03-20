@@ -106,14 +106,6 @@
           regexp: '"password"'
           replace: '"{{ adminpassword.stdout }}"'
 
-      - name: Restarting service mongod
-        service:
-          name: "{{ item }}"
-          state: restarted 
-        with_items:
-          - apache2
-          - mongod
-
       - name: Creating a directory for shell script
         ansible.builtin.file:
           path: /opt/cloudstack
