@@ -121,7 +121,7 @@
       - name: Adding a line for shell script
         lineinfile:
           path: /root/.bashrc
-          line: "chmod +x /opt/cloudstack/filecloud-cleanup.sh && /opt/cloudstack/filecloud-cleanup.sh"
+          line: "chmod +x /usr/local/src/filecloud-20-04/filecloud-installation.sh && /usr/local/src/filecloud-20-04/filecloud-installation.sh"
           state: present    
       
       - name: Restarting sshd
