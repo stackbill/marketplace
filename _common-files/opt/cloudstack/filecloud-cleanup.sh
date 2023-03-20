@@ -1,5 +1,7 @@
 #!/bin/bash
 
+ACCEPT_EULA=Y  apt-get install filecloud -y
+
 RED='\033[1;31m'
 NC='\033[0m'
 
