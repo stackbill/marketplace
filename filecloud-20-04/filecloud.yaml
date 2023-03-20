@@ -124,5 +124,5 @@
           line: "chmod +x /opt/cloudstack/filecloud-cleanup.sh && /opt/cloudstack/filecloud-cleanup.sh"
           state: present    
       
-      - name: Restarting sshd
-        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
+      # - name: Restarting sshd
+      #   shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
