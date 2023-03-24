@@ -8,7 +8,7 @@
         ansible.builtin.apt:
           upgrade: yes
           dpkg_options: 'force-confold,force-confdef'
-          force: true
+          force: yes
           update_cache: yes        
 
       - name: Installing CloudPanel
