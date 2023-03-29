@@ -132,7 +132,7 @@ chown -Rf www-data.www-data /var/www/
 
 systemctl restart apache2
 
-echo "${RED}Installation completed. Access your new WordPress site in a browser to continue.${NC}"
+echo -e "${RED}Installation completed. Access your new WordPress site in a browser to continue.${NC}"
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
