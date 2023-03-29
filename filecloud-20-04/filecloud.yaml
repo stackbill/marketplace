@@ -116,12 +116,12 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/filecloud-20-04/opt/cloudstack/cleanup.sh', confdest: '/opt/cloudstack/'}     
+          - { confsrc: '/usr/local/src/filecloud-20-04/opt/cloudstack/filecloud-cleanup.sh', confdest: '/opt/cloudstack/'}     
 
       - name: Adding a line for shell script
         lineinfile:
           path: /root/.bashrc
-          line: "chmod +x /usr/local/src/filecloud-20-04/filecloud-installation.sh && /usr/local/src/filecloud-20-04/filecloud-installation.sh"
+          line: "chmod +x /opt/cloudstack/filecloud-cleanup.sh && /opt/cloudstack/filecloud-cleanup.sh"
           state: present    
       
       - name: Restarting sshd
