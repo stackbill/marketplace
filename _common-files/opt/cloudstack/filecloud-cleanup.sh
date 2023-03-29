@@ -5,14 +5,19 @@ NC='\033[0m'
 
 echo -e "${RED}
 ################################################################################################################
-#                              Your Filecloud Installation will start in 3 seconds.                            #
-#                              DO NOT END THE SESSION. IF SO RE-LAUNCH THE VM AGAIN!                           #
+#                              Your Filecloud Installation will start in 3 seconds...                          #
+#                              This will take sometime to complete. Please be patience...                      #
+#                              DO NOT END THE SESSION. IF SO RE-LAUNCH THE VM AGAIN!...                        #
 ################################################################################################################
 ${NC}"
 
 sleep 3
 
 ACCEPT_EULA=Y  apt-get install filecloud -y
+
+chown -Rf root. /root/
+
+sleep 1
 
 echo -e "${RED}
 ################################################################################################################
