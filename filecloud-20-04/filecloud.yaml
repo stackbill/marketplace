@@ -66,46 +66,6 @@
           state: latest
           install_recommends: true 
 
-      # - name: Installing filecloud
-      #   apt:
-      #     name: filecloud
-      #     state: latest
-      #   environment:
-      #     ACCEPT_EULA: Y
-
-      # - name: Remove directory install
-      #   file:
-      #     path: /var/www/html/install/
-      #     state: absent
-
-      # - name: Change ownership of a directory
-      #   ansible.builtin.file:
-      #     path: /root/
-      #     state: directory
-      #     recurse: yes
-      #     owner: root
-      #     group: root
-
-      # - name: Generating Filecloud admin password
-      #   shell: openssl rand -hex 24
-      #   register: adminpassword
-
-      # - debug:
-      #    var: adminpassword.stdout
-
-      # - name: Storing Filecloud Admin login Credentials
-      #   copy:
-      #     dest: "/root/.filecloud_admin_credentials"
-      #     content: |
-      #       username = admin
-      #       password = "{{ adminpassword.stdout }}"
-
-      # - name: Replacing Admin Password
-      #   replace:
-      #     path: /var/www/html/config/cloudconfig.php
-      #     regexp: '"password"'
-      #     replace: '"{{ adminpassword.stdout }}"'
-
       - name: Creating a directory for shell script
         ansible.builtin.file:
           path: /opt/cloudstack
