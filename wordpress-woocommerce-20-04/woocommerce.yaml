@@ -297,14 +297,6 @@
           dest: /usr/bin/wp
           mode: '0755'
 
-      - name: Installating fail2ban and Woocommerce
-        shell: "{{ item }}"
-        with_items:
-          - wp plugin install smartarget-contact-us --activate --allow-root --path="/var/www/html"
-          - wp plugin install woocommerce --activate --allow-root --path="/var/www/html"
-          - wp plugin install wp-fail2ban --allow-root --path="/var/www/html"
-          - wp plugin activate wp-fail2ban --allow-root --path="/var/www/html"
-
       - name: Installing postfix
         apt:
           name: [ 'postfix' , 'mailutils' ]
@@ -320,12 +312,12 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/wordpress-woocommerce-20-04/opt/cloudstack/wp-setup.sh', confdest: '/opt/cloudstack/'}     
+          - { confsrc: '/usr/local/src/wordpress-woocommerce-20-04/opt/cloudstack/woocommerce-cleanup.sh', confdest: '/opt/cloudstack/'}     
 
       - name: Adding a line for shell script
         lineinfile:
           path: /root/.bashrc
-          line: "chmod +x /opt/cloudstack/wp-setup.sh && /opt/cloudstack/wp-setup.sh"
+          line: "chmod +x /opt/cloudstack/woocommerce-cleanup.sh && /opt/cloudstack/woocommerce-cleanup.sh"
           state: present
          
       - name: Restarting sshd

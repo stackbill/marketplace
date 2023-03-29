@@ -14,6 +14,6 @@ cd /usr/local/src/wordpress-woocommerce-20-04/etc/apache2/conf-enabled/ && wget 
 
 cd /usr/local/src/wordpress-woocommerce-20-04/usr/share/phpmyadmin/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/usr/share/phpmyadmin/.htaccess
 
-cd /usr/local/src/wordpress-woocommerce-20-04/opt/cloudstack/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/opt/cloudstack/wp-setup.sh
+cd /usr/local/src/wordpress-woocommerce-20-04/opt/cloudstack/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/opt/cloudstack/woocommerce-cleanup.sh
 
 cd /usr/local/src/wordpress-woocommerce-20-04/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/wordpress-woocommerce-20-04/woocommerce.yaml
