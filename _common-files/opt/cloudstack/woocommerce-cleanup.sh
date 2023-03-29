@@ -72,7 +72,7 @@ sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-available/001-default.conf
 
 a2enconf block-xmlrpc >/dev/null 2>&1
 
-echo -en "Please take sometime to complete the WordPress Admin Setup."
+echo -en "${RED}Please take sometime to complete the WordPress Admin Setup.${NC}"
 
 function wordpress_admin_account(){
 
@@ -118,7 +118,7 @@ do
     fi
 done
 
-echo -en "Completing the configuration of WordPress."
+echo -en "${RED}Completing the configuration of WordPress.${NC}"
 wp core install --allow-root --path="/var/www/html" --title="$title" --url="$dom" --admin_email="$email"  --admin_password="$pass" --admin_user="$username"
 wp plugin install smartarget-contact-us --activate --allow-root --path="/var/www/html"
 wp plugin install woocommerce --activate --allow-root --path="/var/www/html"
