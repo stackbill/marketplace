@@ -297,12 +297,6 @@
           dest: /usr/bin/wp
           mode: '0755'
 
-      - name: Installating fail2ban Plugin
-        shell: "{{ item }}"
-        with_items:
-          - wp plugin install wp-fail2ban --allow-root --path="/var/www/html"
-          - wp plugin activate wp-fail2ban --allow-root --path="/var/www/html"
-
       - name: Installing postfix
         apt:
           name: [ 'postfix' , 'mailutils' ]

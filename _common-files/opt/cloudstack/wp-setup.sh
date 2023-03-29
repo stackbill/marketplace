@@ -72,6 +72,9 @@ sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-available/001-default.conf
 
 a2enconf block-xmlrpc >/dev/null 2>&1
 
+wp plugin install wp-fail2ban --allow-root --path="/var/www/html"
+wp plugin activate wp-fail2ban --allow-root --path="/var/www/html"
+
 chown -Rf www-data.www-data /var/www/
 
 systemctl restart apache2
