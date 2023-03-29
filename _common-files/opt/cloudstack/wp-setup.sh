@@ -72,6 +72,8 @@ sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-available/001-default.conf
 
 a2enconf block-xmlrpc >/dev/null 2>&1
 
+chown -Rf www-data.www-data /var/www/
+
 systemctl restart apache2
 
 rm -rf /root/.bashrc

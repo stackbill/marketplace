@@ -290,7 +290,19 @@
         with_items:
            - 'cd /etc/apache2/sites-enabled/ && ln -vs ../sites-available/001-default.conf .'
            - 'cd /etc/apache2/mods-enabled/ && ln -vs ../mods-available/rewrite.load .'
-           
+
+      - name: Downloading Wp-cli
+        ansible.builtin.get_url:
+          url: https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          dest: /usr/bin/wp
+          mode: '0755'
+
+      - name: Installating fail2ban Plugin
+        shell: "{{ item }}"
+        with_items:
+          - wp plugin install wp-fail2ban --allow-root --path="/var/www/html"
+          - wp plugin activate wp-fail2ban --allow-root --path="/var/www/html"
+
       - name: Installing postfix
         apt:
           name: [ 'postfix' , 'mailutils' ]
