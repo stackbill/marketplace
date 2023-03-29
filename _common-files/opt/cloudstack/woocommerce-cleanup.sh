@@ -72,6 +72,8 @@ sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-available/001-default.conf
 
 a2enconf block-xmlrpc >/dev/null 2>&1
 
+echo
+echo
 echo -en "${RED}Please take sometime to complete the WordPress Admin Setup.${NC}"
 
 function wordpress_admin_account(){
@@ -118,6 +120,8 @@ do
     fi
 done
 
+echo
+echo
 echo -en "${RED}Completing the configuration of WordPress.${NC}"
 wp core install --allow-root --path="/var/www/html" --title="$title" --url="$dom" --admin_email="$email"  --admin_password="$pass" --admin_user="$username"
 wp plugin install smartarget-contact-us --activate --allow-root --path="/var/www/html"
@@ -127,6 +131,8 @@ wp plugin activate wp-fail2ban --allow-root --path="/var/www/html"
 chown -Rf www-data.www-data /var/www/
 
 systemctl restart apache2
+
+echo "${RED}Installation completed. Access your new WordPress site in a browser to continue.${NC}"
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
