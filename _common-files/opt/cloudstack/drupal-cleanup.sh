@@ -28,7 +28,7 @@ echo -e "${RED}Use the Below Password for logging into MariaDB${NC}"
 echo
 cat /root/.mariadb_root_password
 echo
-echo -e "${RED}Refer to the below Joomla database login details to setup drupal in the web Interface${NC}"
+echo -e "${RED}Refer to the below Drupal database login details to setup drupal in the web Interface${NC}"
 echo
 cat /root/.drupal_database_details
 echo
@@ -56,7 +56,7 @@ a=0
 while [ $a -eq 0 ]
 do
  echo -e "${RED}To cancel setup, press Ctrl+C.  This script will run again on your next login:${NC}"
- echo -e "${RED}Enter the domain name for your new Joomla site:${NC}"
+ echo -e "${RED}Enter the domain name for your new Drupal site:${NC}"
  echo -e "${RED}(ex. example.org or test.example.org) do not include www or http/s:${NC}"
  read -p "Domain/Subdomain name: " dom
  if [ -z "$dom" ]
