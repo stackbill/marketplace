@@ -275,7 +275,7 @@
       - name: Configuring Drush and installing Drupal
         shell: "{{ item }}"
         with_items:
-          - export COMPOSER_ALLOW_SUPERUSER=1
+          # - export COMPOSER_ALLOW_SUPERUSER=1
           - composer global require drush/drush	--working-dir=/var/www/html
           - drush -y site-install standard --db-url=mysql://drupal_user:{{ drupalpassword.stdout }}@127.0.0.1/drupal_db --account-name=admin --account-pass={{ adminpassword.stdout }} --root=/var/www/html/
           - drush -y config-set system.performance css.preprocess 0 -q --root=/var/www/html/
