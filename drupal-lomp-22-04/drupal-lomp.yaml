@@ -272,27 +272,12 @@
           - mysql -e "CREATE USER 'drupal_user'@'localhost' IDENTIFIED BY '{{ drupalpassword.stdout }}';" 
           - mysql -e "GRANT ALL PRIVILEGES ON drupal_db.* TO 'drupal_user'@'localhost';"
 
-      # - name: Setting ENV variable
-      #   shell: "echo $COMPOSER_ALLOW_SUPERUSER"
-      #   environment:
-      #    COMPOSER_ALLOW_SUPERUSER: 1
-
-      # - name: Configuring Drush and installing Drupal
-      #   shell: "{{ item }}"
-      #   with_items:
-      #     # - export COMPOSER_ALLOW_SUPERUSER=1
-      #     - composer global require drush/drush	--working-dir=/var/www/html
-      #     - drush -y site-install standard --db-url=mysql://drupal_user:{{ drupalpassword.stdout }}@127.0.0.1/drupal_db --account-name=admin --account-pass={{ adminpassword.stdout }} --root=/var/www/html/
-      #     - drush -y config-set system.performance css.preprocess 0 -q --root=/var/www/html/
-      #     - drush -y config-set system.performance js.preprocess 0 -q --root=/var/www/html/
-      #     - drush cache-rebuild -q --root=/var/www/html/
-
-      # - name: Changing file permission
-      #   ansible.builtin.file:
-      #     path: /var/www/html/sites/default/files
-      #     state: directory
-      #     mode: '0777'
-
+      - name: Download Drupal files
+        ansible.builtin.unarchive:
+          src: https://github.com/litespeedtech/lscache-drupal/archive/master.zip
+          dest: /var/www/html/modules
+          remote_src: yes
+          
       - name: Change ownership of a directory
         ansible.builtin.file:
           path: /var/www

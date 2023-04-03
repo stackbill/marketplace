@@ -23,7 +23,7 @@ sudo drush -y site-install standard --db-url=mysql://drupal_user:$drupaldbpass@1
 sudo drush -y config-set system.performance css.preprocess 0 -q --root=/var/www/html/
 sudo drush -y config-set system.performance js.preprocess 0 -q --root=/var/www/html/
 sudo drush cache-rebuild -q --root=/var/www/html/
-# sudo drush pm:enable lite_speed_cache
+sudo drush pm:enable lite_speed_cache
 sudo chmod 777 /var/www/html/sites/default/files
 sudo systemctl stop lsws >/dev/null 2>&1
 sudo /usr/local/lsws/bin/lswsctrl stop >/dev/null 2>&1
