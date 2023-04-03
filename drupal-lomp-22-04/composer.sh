@@ -9,6 +9,3 @@ php -r "unlink('composer-setup.php');"
 
 #Installing Drush
 wget -O /usr/local/src/drush.phar https://github.com/drush-ops/drush-launcher/releases/latest/download/drush.phar
-
-# #Allow Composer to run as superuser
-# export COMPOSER_ALLOW_SUPERUSER=1
