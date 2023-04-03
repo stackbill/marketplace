@@ -271,6 +271,7 @@
           - mysql -e 'create database drupal_db'
           - mysql -e "CREATE USER 'drupal_user'@'localhost' IDENTIFIED BY '{{ drupalpassword.stdout }}';" 
           - mysql -e "GRANT ALL PRIVILEGES ON drupal_db.* TO 'drupal_user'@'localhost';"
+          - mysql -e 'SET GLOBAL TRANSACTION ISOLATION LEVEL READ COMMITTED'
 
       - name: Download Drupal files
         ansible.builtin.unarchive:
