@@ -36,6 +36,10 @@ echo -e "${RED}Refer to the below Openlitespeed Admin login details${NC}"
 echo
 cat /root/.Litespeed_Admin_Password
 echo
+echo -e "${RED}Refer to the below Drupal Admin login details${NC}"
+echo
+cat /root/.Drupal_Admin_Login_Credentials
+echo
 
 #Cleanup script
 rm -rf /usr/local/src/
