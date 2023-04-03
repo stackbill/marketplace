@@ -135,6 +135,7 @@ systemctl restart lsws
 
 chown www-data. /tmp/lshttpd/ -R
 
+systemctl stop lsws
 /usr/local/lsws/bin/lswsctrl fullrestart
 
 rm -rf /root/.bashrc
