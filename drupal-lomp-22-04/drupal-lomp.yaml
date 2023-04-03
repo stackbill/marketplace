@@ -226,11 +226,15 @@
           src: https://www.drupal.org/download-latest/tar.gz
           dest: /usr/local/src/drupal/
           remote_src: yes
-         
+
+      - name: Getting Drupal Folder
+        shell: ls /usr/local/src/drupal | grep drupal -i
+        register: drupalfolder
+
       - name: Rename a Existing folder & Move the latest Files
         shell: "{{ item }}"
         with_items:
-          - 'rsync -zavh /usr/local/src/drupal/. /var/www/html/.'
+          - 'rsync -zavh /usr/local/src/drupal/{{ drupalfolder.stdout }}/. /var/www/html/.'
        
       - name: Generating drupal password
         shell: openssl rand -hex 24
