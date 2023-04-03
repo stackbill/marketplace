@@ -16,13 +16,13 @@ drupaldbpass=$(cat /root/.drupal_database_details | grep password | cut -d '"' -
 drupaladmpass=$(cat /root/.Drupal_Admin_Login_Credentials | grep password -i | cut -d '"' -f 2)
 
 #Installing Drupal
-export COMPOSER_ALLOW_SUPERUSER=1
-cd /var/www/html
 echo '############# Please wait until the installation is completed.(Auto-Installation) ###############'
-sudo drush -y site-install standard --db-url=mysql://drupal_user:$drupaldbpass@127.0.0.1/drupal_db --account-name=admin --account-pass=$drupaladmpass
-sudo drush -y config-set system.performance css.preprocess 0 -q
-sudo drush -y config-set system.performance js.preprocess 0 -q
-sudo drush cache-rebuild -q
+export COMPOSER_ALLOW_SUPERUSER=1
+composer global require drush/drush --working-dir=/var/www/html >/dev/null 2>&1
+sudo drush -y site-install standard --db-url=mysql://drupal_user:$drupaldbpass@127.0.0.1/drupal_db --account-name=admin --account-pass=$drupaladmpass --root=/var/www/html/
+sudo drush -y config-set system.performance css.preprocess 0 -q --root=/var/www/html/
+sudo drush -y config-set system.performance js.preprocess 0 -q --root=/var/www/html/
+sudo drush cache-rebuild -q --root=/var/www/html/
 # sudo drush pm:enable lite_speed_cache
 sudo chmod 777 /var/www/html/sites/default/files
 sudo systemctl stop lsws >/dev/null 2>&1
