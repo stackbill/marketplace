@@ -199,17 +199,6 @@
         shell: curl ifconfig.me.
         register: ipout
 
-      - name: Configuing OwnCloud
-        shell: 
-        with_items:
-          - occ maintenance:install --database "mysql" --database-name "owncloud_db" --database-user "owncloud_user" --database-pass "{{ owncloudpassword.stdout }}" --admin-user "admin" --admin-pass "{{ adminowncloudpassword.stdout }}"
-          - occ config:system:set trusted_domains 1 --value="{{ ipout.stdout }}"
-
-      - name: Installing postfix
-        apt:
-          name: [ 'postfix' , 'mailutils' ]
-          state: latest      
-
       - name: Change ownership of a directory
         ansible.builtin.file:
           path: /var/www
@@ -217,6 +206,17 @@
           recurse: yes
           owner: www-data
           group: www-data
+
+      - name: Configuing OwnCloud
+        shell: "{{ item }}"
+        with_items:
+          - 'occ maintenance:install --database "mysql" --database-name "owncloud_db" --database-user "owncloud_user" --database-pass "{{ owncloudpassword.stdout }}" --admin-user "admin" --admin-pass "{{ adminowncloudpassword.stdout }}"'
+          - 'occ config:system:set trusted_domains 1 --value="{{ ipout.stdout }}"'
+
+      - name: Installing postfix
+        apt:
+          name: [ 'postfix' , 'mailutils' ]
+          state: latest      
 
       - name: Creating a directory for shell script
         ansible.builtin.file:
