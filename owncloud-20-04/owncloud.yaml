@@ -175,11 +175,35 @@
           - mysql -e "CREATE USER 'owncloud_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ owncloudpassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
           - mysql -e "GRANT ALL PRIVILEGES ON owncloud_db.* TO 'owncloud_user'@'localhost';" -u root -p{{ rootpassword.stdout }}
 
+      - name: Executing occ file
+        shell: sh /usr/local/src/owncloud-20-04/occ.sh
+
+      - name: Setting permission for occ
+        ansible.builtin.file:
+          path: /usr/local/bin/occ
+          mode: '0755'
+
+      - name: Creating a symlink
+        ansible.builtin.file:
+          src: "/usr/local/bin/occ"
+          dest: "/usr/bin/occ"
+          state: link
+
       - name: Download Drupal files
         ansible.builtin.unarchive:
           src: https://download.owncloud.com/server/stable/owncloud-complete-latest.tar.bz2
           dest: /var/www/html/
           remote_src: yes
+
+      - name: Finding IP
+        shell: curl ifconfig.me.
+        register: ipout
+
+      - name: Configuing OwnCloud
+        shell: 
+        with_items:
+          - occ maintenance:install --database "mysql" --database-name "owncloud_db" --database-user "owncloud_user" --database-pass "{{ owncloudpassword.stdout }}" --admin-user "admin" --admin-pass "{{ adminowncloudpassword.stdout }}"
+          - occ config:system:set trusted_domains 1 --value="{{ ipout.stdout }}"
 
       - name: Installing postfix
         apt:
