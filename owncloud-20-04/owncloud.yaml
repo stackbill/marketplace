@@ -188,11 +188,11 @@
 
       - name: Change ownership of a directory
         ansible.builtin.file:
-        path: /var/www
-        state: directory
-        recurse: yes
-        owner: www-data
-        group: www-data
+          path: /var/www
+          state: directory
+          recurse: yes
+          owner: www-data
+          group: www-data
 
       - name: Creating a directory for shell script
         ansible.builtin.file:
