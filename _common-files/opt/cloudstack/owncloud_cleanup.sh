@@ -19,6 +19,8 @@ sudo -u www-data ./occ maintenance:install \
 
 chown -R www-data. /var/www/
 
+systemctl restart apache2 
+
 echo -e "${RED}
 ################################################################################################################
 #                              Your MarketPlace App has been deployed successfully!                            #
