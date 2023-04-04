@@ -134,6 +134,25 @@
       - debug:
           var: phpversion.stdout_lines 
 
+      - name: Installing PHP dependencies
+        apt:
+          name: [ 'php7.4-mysql' , 'php7.4-zip' , 'php7.4-dom' , 'php7.4-intl' , 'php7.4-mbstring' , 'php7.4-curl' , 'php7.4-gd' ]
+          state: present
+
+      - name: Generating owncloud Admin password
+        shell: openssl rand -hex 24
+        register: adminowncloudpassword
+
+      - debug:
+         var: adminowncloudpassword.stdout
+
+      - name: Storing owncloud Admin password
+        copy:
+          dest: "/root/.owncloud_admin_details"
+          content: |
+            owncloud_admin_username = admin
+            owncloud_admin__password = "{{ adminowncloudpassword.stdout }}"
+
       - name: Generating owncloud password
         shell: openssl rand -hex 24
         register: owncloudpassword
@@ -182,8 +201,11 @@
       - name: Adding a line for shell script
         lineinfile:
           path: /root/.bashrc
-          line: "chmod +x /opt/cloudstack/owncloud_cleanup.sh && /opt/cloudstack/owncloud_cleanup.sh"
+          line: "{{ item }}"
           state: present  
+        with_items:
+          - chmod +x /opt/cloudstack/owncloud_cleanup.sh
+          - source /opt/cloudstack/owncloud_cleanup.sh
 
       - name: Restarting sshd
         shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"

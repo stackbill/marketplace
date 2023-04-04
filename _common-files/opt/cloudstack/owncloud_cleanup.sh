@@ -3,6 +3,22 @@
 RED='\033[1;31m'
 NC='\033[0m'
 
+echo -e "${RED}############# Please wait until the setup is completed ###############${NC}"
+
+dbpass=$(cat /root/.owncloud_database_details | grep pass | cut -d '"' -f 2)
+adminpass=$(cat /root/.owncloud_admin_details | grep pass | cut -d '"' -f 2)
+
+cd /var/www/html/owncloud/
+sudo -u www-data ./occ maintenance:install \
+   --database "mysql" \
+   --database-name "owncloud_db" \
+   --database-user "owncloud_user"\
+   --database-pass "$dbpass" \
+   --admin-user "admin" \
+   --admin-pass "$adminpass"
+
+chown -R www-data. /var/www/
+
 echo -e "${RED}
 ################################################################################################################
 #                              Your MarketPlace App has been deployed successfully!                            #
@@ -21,6 +37,10 @@ echo
 echo -e "${RED}Refer to the below OwnCloud Database login details${NC}"
 echo
 cat /root/.owncloud_database_details
+echo
+echo -e "${RED}Refer to the below OwnCloud Admin Dashboard login details${NC}"
+echo
+cat /root/.owncloud_admin_details
 echo
 
 #Cleanup script
