@@ -195,10 +195,6 @@
           dest: /var/www/html/
           remote_src: yes
 
-      - name: Finding IP
-        shell: curl ifconfig.me.
-        register: ipout
-
       - name: Change ownership of a directory
         ansible.builtin.file:
           path: /var/www
