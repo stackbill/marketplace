@@ -163,6 +163,9 @@ chown www-data. /tmp/lshttpd/ -R
 
 systemctl stop lsws
 /usr/local/lsws/bin/lswsctrl fullrestart
+echo
+echo
+echo -e "${RED}Installation completed. Access your new Drupal-Lomp site in a browser to continue.${NC}"
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
