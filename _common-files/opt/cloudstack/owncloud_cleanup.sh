@@ -3,6 +3,8 @@
 RED='\033[1;31m'
 NC='\033[0m'
 
+systemctl restart apache2 >/dev/null 2>&1
+
 echo -e "${RED}
 ################################################################################################################
 #                              Your MarketPlace App has been deployed successfully!                            #

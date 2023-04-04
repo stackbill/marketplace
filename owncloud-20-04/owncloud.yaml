@@ -29,7 +29,7 @@
           src: "{{ item.confsrc }}"
           dest: "{{ item.confdest }}"
         with_items: 
-          - { confsrc: '/usr/local/src/owncloud-20-04/etc/apache2/sites-available/000-default.conf', confdest: '/etc/apache2/sites-available/'}
+          - { confsrc: '/usr/local/src/owncloud-20-04/etc/apache2/sites-available/owncloud.conf', confdest: '/etc/apache2/sites-available/'}
           - { confsrc: '/usr/local/src/owncloud-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
 
       - name: Starting service apache2
@@ -211,7 +211,13 @@
         shell: "{{ item }}"
         with_items:
           - 'occ maintenance:install --database "mysql" --database-name "owncloud_db" --database-user "owncloud_user" --database-pass "{{ owncloudpassword.stdout }}" --admin-user "admin" --admin-pass "{{ adminowncloudpassword.stdout }}"'
-          - 'occ config:system:set trusted_domains 1 --value="{{ ipout.stdout }}"'
+
+      - name: Enable the Virtual Host Configuration and apache modules
+        shell: "{{ item }}"
+        with_items:
+          - a2dissite 000-default
+          - a2ensite owncloud.conf
+          - a2enmod dir env headers mime rewrite setenvif
 
       - name: Installing postfix
         apt:
