@@ -201,7 +201,7 @@
         with_items:
           - a2dissite 000-default
           - a2ensite mediawiki.conf
-          # - a2enmod dir env headers mime rewrite setenvif
+          - a2enmod dir env headers mime rewrite setenvif
 
       - name: Restart Apache
         service:
