@@ -175,45 +175,33 @@
           - mysql -e "CREATE USER 'mediawiki_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ mediawikipassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
           - mysql -e "GRANT ALL PRIVILEGES ON mediawiki_db.* TO 'mediawiki_user'@'localhost';" -u root -p{{ rootpassword.stdout }}
 
-      # - name: Executing occ file
-      #   shell: sh /usr/local/src/mediawiki-22-04/occ.sh
+      - name: Download Mediawiki files
+        ansible.builtin.unarchive:
+          src: https://releases.wikimedia.org/mediawiki/1.39/mediawiki-1.39.3.tar.gz
+          dest: /usr/local/src/
+          remote_src: yes
+      
+      - name: Syncing the files
+        shell: rsync -zavh /usr/local/src/mediawiki-1.39.3/ /var/www/html/mediawiki/
 
-      # - name: Setting permission for occ
-      #   ansible.builtin.file:
-      #     path: /usr/local/bin/occ
-      #     mode: '0755'
+      - name: Configuring mediawiki
+        shell: php /var/www/html/mediawiki/maintenance/install.php --lang=en --confpath=/var/www/html/mediawiki/ --scriptpath=/mediawiki --dbtype=mysql --dbserver="localhost" --dbname=mediawiki_db  --dbuser=mediawiki_user --dbpass={{ mediawikipassword.stdout }} "MediaWiki Page" "admin"	--pass={{ adminmediawikipassword.stdout }} 
 
-      # - name: Creating a symlink
-      #   ansible.builtin.file:
-      #     src: "/usr/local/bin/occ"
-      #     dest: "/usr/bin/occ"
-      #     state: link
 
-      # - name: Download Drupal files
-      #   ansible.builtin.unarchive:
-      #     src: https://download.mediawiki.com/server/stable/mediawiki-complete-latest.tar.bz2
-      #     dest: /var/www/html/
-      #     remote_src: yes
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /var/www
+          state: directory
+          recurse: yes
+          owner: www-data
+          group: www-data
 
-      # - name: Change ownership of a directory
-      #   ansible.builtin.file:
-      #     path: /var/www
-      #     state: directory
-      #     recurse: yes
-      #     owner: www-data
-      #     group: www-data
-
-      # - name: Configuing OwnCloud
-      #   shell: "{{ item }}"
-      #   with_items:
-      #     - 'occ maintenance:install --database "mysql" --database-name "mediawiki_db" --database-user "mediawiki_user" --database-pass "{{ mediawikipassword.stdout }}" --admin-user "admin" --admin-pass "{{ adminmediawikipassword.stdout }}"'
-
-      # - name: Enable the Virtual Host Configuration and apache modules
-      #   shell: "{{ item }}"
-      #   with_items:
-      #     - a2dissite 000-default
-      #     - a2ensite mediawiki.conf
-      #     - a2enmod dir env headers mime rewrite setenvif
+      - name: Enable the Virtual Host Configuration and apache modules
+        shell: "{{ item }}"
+        with_items:
+          - a2dissite 000-default
+          - a2ensite mediawiki.conf
+          # - a2enmod dir env headers mime rewrite setenvif
 
       - name: Installing postfix
         apt:
