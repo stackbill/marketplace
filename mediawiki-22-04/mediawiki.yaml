@@ -203,6 +203,11 @@
           - a2ensite mediawiki.conf
           # - a2enmod dir env headers mime rewrite setenvif
 
+      - name: Restart Apache
+        service:
+           name: apache2
+           state: restarted 
+
       - name: Installing postfix
         apt:
           name: [ 'postfix' , 'mailutils' ]
