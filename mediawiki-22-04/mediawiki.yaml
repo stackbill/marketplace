@@ -13,7 +13,7 @@
 
       - name: Installing apache
         apt:
-          name: [ 'apache2' , 'python3-certbot-apache' ]
+          name: [ 'apache2' , 'python3-certbot-apache', 'imagemagick', 'inkscape' ]
           state: latest
 
       - name: Removing site files
@@ -136,7 +136,7 @@
 
       - name: Installing PHP dependencies
         apt:
-          name: [ 'php7.4-mysql' , 'php7.4-zip' , 'php7.4-dom' , 'php7.4-intl' , 'php7.4-mbstring' , 'php7.4-curl' , 'php7.4-gd' ]
+          name: [ 'php7.4-mysql' , 'php7.4-zip' , 'php7.4-dom' , 'php7.4-intl' , 'php7.4-mbstring' , 'php7.4-curl' , 'php7.4-gd' , 'libapache2-mod-php7.4']
           state: present
 
       - name: Generating mediawiki Admin password
@@ -186,7 +186,6 @@
 
       - name: Configuring mediawiki
         shell: php /var/www/html/mediawiki/maintenance/install.php --lang=en --confpath=/var/www/html/mediawiki/ --scriptpath=/mediawiki --dbtype=mysql --dbserver="localhost" --dbname=mediawiki_db  --dbuser=mediawiki_user --dbpass={{ mediawikipassword.stdout }} "MediaWiki Page" "admin"	--pass={{ adminmediawikipassword.stdout }} 
-
 
       - name: Change ownership of a directory
         ansible.builtin.file:
