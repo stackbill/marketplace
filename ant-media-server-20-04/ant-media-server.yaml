@@ -1,0 +1,45 @@
+- name: Ant Media Server Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Download AMS zip file
+        ansible.builtin.get_url:
+          url: https://github.com/ant-media/Ant-Media-Server/releases/download/ams-v2.5.3/ant-media-server-community-2.5.3.zip
+          dest: /usr/local/src/
+
+      - name: Download AMS installer file
+        ansible.builtin.get_url:
+          url: https://raw.githubusercontent.com/ant-media/Scripts/master/install_ant-media-server.sh
+          dest: /usr/local/src/
+          mode: '0755'
+
+
+      - name: Installing AMS 
+        shell: /usr/local/src/install_ant-media-server.sh -i /usr/local/src/ant-media-server-community-2.5.3.zip 
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/ant-media-server-20-04/opt/cloudstack/cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
+          state: present    
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
