@@ -21,7 +21,7 @@ echo -e "${RED}RethinkDB instance config: /etc/rethinkdb/instances.d/instance.co
 RethinkDB log file:        /var/log/rethinkdb${NC}"
 echo
 echo -e "${RED}You can view the RethinkDB Admin UI using the below URL in your browser.${NC}"
-echo -e "${RED}http://\$IPADDRESS:8000${NC}"
+echo -e "${RED}http://\$IPADDRESS:8080${NC}"
 echo
 
 
