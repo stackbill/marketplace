@@ -1,0 +1,85 @@
+- name: RethinkDB Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Configuring packages for rethinkdb
+        shell: "{{ item }}"
+        with_items:
+          - wget -qO- https://download.rethinkdb.com/repository/raw/pubkey.gpg | sudo gpg --dearmor -o /usr/share/keyrings/rethinkdb-archive-keyrings.gpg
+          - echo "deb [signed-by=/usr/share/keyrings/rethinkdb-archive-keyrings.gpg] https://download.rethinkdb.com/repository/ubuntu-$(lsb_release -cs) $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/rethinkdb.list
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing rethinkdb
+        ansible.builtin.apt:
+          name: rethinkdb
+          state: present
+
+      - name: Copying the configuration file
+        copy: 
+          src: /etc/rethinkdb/default.conf.sample
+          dest: /etc/rethinkdb/instances.d/instance.conf
+          remote_src: yes
+
+      - name: Modifying the configuration
+        replace:
+          path: /etc/rethinkdb/instances.d/instance.conf
+          regexp: "{{ item.org }}"
+          replace: "{{ item.rep }}"
+        with_items:
+          - { org: '# runuser=rethinkdb', rep: 'runuser=rethinkdb'}
+          - { org: '# rungroup=rethinkdb', rep: 'rungroup=rethinkdb'}
+          - { org: '# pid-file=/var/run/rethinkdb/rethinkdb.pid', rep: 'pid-file=/var/run/rethinkdb/rethinkdb.pid'}
+          - { org: '# directory=/var/lib/rethinkdb/default', rep: 'directory=/var/lib/rethinkdb/default'}
+          - { org: '# log-file=/var/log/rethinkdb', rep: 'log-file=/var/log/rethinkdb'}
+          - { org: '# bind=127.0.0.1', rep: 'bind=all'}
+          - { org: '# driver-port=28015', rep: 'driver-port=28015'}
+          - { org: '# cluster-port=29015', rep: 'cluster-port=29015'}
+          - { org: '# http-port=8080', rep: 'http-port=8080'}
+
+      - name: Creating a log file
+        ansible.builtin.file:
+          path: /var/log/rethinkdb
+          state: touch     
+          owner: rethinkdb
+          group: rethinkdb
+
+      - name: Enable services and start
+        ansible.builtin.systemd:
+          name: rethinkdb
+          state: started
+          enabled: true
+
+      - name: Restart rethinkdb
+        service:
+           name: rethinkdb
+           state: restarted 
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/rethinkdb-22-04/opt/cloudstack/rethinkdb-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/rethinkdb-cleanup.sh && /opt/cloudstack/rethinkdb-cleanup.sh"
+          state: present      
+          
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
