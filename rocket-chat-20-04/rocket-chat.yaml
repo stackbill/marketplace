@@ -1,0 +1,72 @@
+- name: Rocker.Chat Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Download file for docker and docker compose
+        ansible.builtin.get_url:
+          url: https://get.docker.com
+          dest: /usr/local/src/docker.sh
+          mode: '0755'
+
+      - name: Installing docker and docker compose
+        shell: /usr/local/src/docker.sh
+
+      - name: Download compose file for Installing rocker chat
+        ansible.builtin.get_url:
+          url: https://raw.githubusercontent.com/RocketChat/Docker.Official.Image/master/compose.yml
+          dest: /root/compose.yml
+
+      - name: Modifying the configuration
+        replace:
+          path: /root/compose.yml
+          regexp: 'restart: always'
+          replace: 'restart: on-failure'
+
+      - name: GetIP of the instance
+        shell: curl ifconfig.me
+        register: ip_out
+
+      - debug:
+          var: ip_out.stdout
+
+      - name: Creating a directory for rockerchat
+        ansible.builtin.file:
+          path: /root/rocketchat
+          state: directory  
+
+      - name: Adding IP to a file
+        ansible.builtin.lineinfile:
+          path: /root/rocketchat/.env
+          line: ROOT_URL=http://{{ip_out.stdout}}:3000
+          create: yes
+
+      - name: Installing rocketchat
+        shell: docker compose --env-file /root/rocketchat/.env -f /root/compose.yml up -d
+        register: docker_out
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/rocket-chat-20-04/opt/cloudstack/rocket-chat-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/rocket-chat-cleanup.sh && /opt/cloudstack/rocket-chat-cleanup.sh"
+          state: present      
+          
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
