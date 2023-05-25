@@ -11,3 +11,5 @@ cd /usr/local/src/opensearch-20-04/etc/systemd/system/ && wget https://raw.githu
 cd /usr/local/src/opensearch-20-04/opt/cloudstack/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/opt/cloudstack/opensearch-cleanup.sh
 
 cd /usr/local/src/opensearch-20-04/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/opensearch-20-04/opensearch.yaml
+
+cd /usr/local/src/opensearch-20-04/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/usr/local/src/add.sh
