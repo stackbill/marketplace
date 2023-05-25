@@ -22,6 +22,7 @@ echo -e "${RED}Opensearch Kibanaserver admin login details${NC}"
 echo
 cat /root/.opensearch_kibanaserver_admin_password
 echo
+echo Access the Opensearch Dashboard using https://$\IPADDRESS:5601
 
 #Cleanup script
 rm -rf /usr/local/src/
