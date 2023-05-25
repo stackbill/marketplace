@@ -1,0 +1,18 @@
+[Unit]
+Description=OpenSearch-Dashboards
+Wants=network-online.target
+After=network-online.target opensearch.service 
+
+[Service]
+Type=simple
+User=opensearch
+Environment=NODE_ENV=production
+Environment=CONFIG_PATH=/opt/opensearch-dashboards/config/opensearch_dashboards.yml
+WorkingDirectory=/opt/opensearch-dashboards
+ExecStart=/opt/opensearch-dashboards/bin/opensearch-dashboards
+StandardOutput=journal
+StandardError=inherit
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target
