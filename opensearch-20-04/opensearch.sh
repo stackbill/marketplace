@@ -12,4 +12,4 @@ cd /usr/local/src/opensearch-20-04/opt/cloudstack/ && wget https://raw.githubuse
 
 cd /usr/local/src/opensearch-20-04/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/opensearch-20-04/opensearch.yaml
 
-cd /usr/local/src/opensearch-20-04/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/usr/local/src/add.sh
+cd /usr/local/src/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/usr/local/src/add.sh
