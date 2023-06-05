@@ -123,6 +123,28 @@
       # - name: Change login type
       #   shell: 'mysql -u root -p{{ rootpassword.stdout }} -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket;" > /dev/null 2>&1'
 
+      - name: Generating magento password
+        shell: openssl rand -hex 24
+        register: magentopassword
+
+      - debug:
+         var: magentopassword.stdout
+
+      - name: Storing magento password
+        copy:
+          dest: "/root/.magento_database_details"
+          content: |
+            magento_database_name = magento_db          
+            magento_database_user = magento_user
+            magento_user_password = "{{ magentopassword.stdout }}"
+
+      - name: Creating Magento2 DB configurations
+        shell: "{{ item }}"
+        with_items:
+          - mysql -e 'create database magento_db' -u root -p{{ rootpassword.stdout }}
+          - mysql -e "CREATE USER 'magento_user'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ magentopassword.stdout }}';" -u root -p{{ rootpassword.stdout }}
+          - mysql -e "GRANT ALL PRIVILEGES ON magento_db.* TO 'magento_user'@'localhost';" -u root -p{{ rootpassword.stdout }}
+
       - debug:
          msg: "Installing PHP"
 
@@ -143,6 +165,20 @@
 
       - debug:
           var: phpversion.stdout_lines 
+
+      - name: Installing Composer
+        shell: chmod +x /usr/local/src/magento2-20-04/composer.sh && /usr/local/src/magento2-20-04/composer.sh
+
+      - name: Copy Composer file
+        copy:
+          src: /usr/local/src/magento2-20-04/composer.phar
+          dest: /usr/local/bin/composer
+          remote_src: yes
+
+      - name: Setting permission for composer
+        ansible.builtin.file:
+          path: /usr/local/bin/composer
+          mode: '0755'
 
       - name: Creating a directory for shell script
         ansible.builtin.file:
