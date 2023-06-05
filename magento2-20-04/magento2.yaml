@@ -54,6 +54,96 @@
       - debug:
           var: status.stdout 
 
+      - debug:
+         msg: "Installing Mysql"
+
+      - name: Installing mysql
+        apt:
+          name: mysql-server
+          state: latest
+
+      - name: Starting service mysql
+        service:
+          name: mysql
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status mysql | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Generating root password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+         var: rootpassword.stdout
+
+      - name: Storing mysql password
+        copy:
+          dest: "/root/.mysql_root_password"
+          content: |
+            root_mysql_pass = "{{ rootpassword.stdout }}"
+            
+      - name: Remove anonymous users
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User=''
+        changed_when: False
+
+      - name: Disallow root login remotely
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1')
+        changed_when: False
+
+      - name: Remove test database and access to it
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - DROP DATABASE IF EXISTS test
+          - DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%'
+        changed_when: False
+
+      - name: Reload privilege tables
+        command: 'mysql -ne "{{ item }}"'
+        with_items:
+          - FLUSH PRIVILEGES
+        changed_when: False
+
+      - name: Alter Password
+        shell: "{{ item }}"
+        with_items:
+          - mysql -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ rootpassword.stdout }}';"
+
+      - debug:
+          msg: "Mysql root password is stored under /root/.mysql_root_password"
+
+      # - name: Change login type
+      #   shell: 'mysql -u root -p{{ rootpassword.stdout }} -n --execute="ALTER USER 'root'@'localhost' IDENTIFIED WITH auth_socket;" > /dev/null 2>&1'
+
+      - debug:
+         msg: "Installing PHP"
+
+      - name: Installation install software-properties-common
+        apt: name=software-properties-common
+      
+      - name: "Repo PHP 8.1"
+        apt_repository:
+          repo="ppa:ondrej/php"
+    
+      - name: Installation PHP
+        apt: 
+          name: php8.1
+          state: present
+
+      - shell: php -v
+        register: phpversion
+
+      - debug:
+          var: phpversion.stdout_lines 
+
       - name: Creating a directory for shell script
         ansible.builtin.file:
           path: /opt/cloudstack
