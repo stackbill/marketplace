@@ -1,0 +1,76 @@
+- name: Magento Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+         
+      - debug:
+         msg: "Installing Apache"
+
+      - name: Installing apache
+        apt:
+          name: [ 'apache2' , 'python3-certbot-apache' ]
+          state: latest
+
+      - name: Removing site files
+        file:
+          path: "{{ item }}"
+          state: absent
+        with_items: 
+          - /etc/apache2/sites-available/000-default.conf
+          - /etc/apache2/sites-enabled/000-default.conf
+          - /var/www/html/index.html
+
+      - name: Copy files
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2.conf', confdest: '/etc/apache2/sites-available/'}
+          - { confsrc: '/usr/local/src/magento2-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
+
+      - name: Renaming the file
+        shell: mv /etc/apache2/sites-available/magento2.conf /etc/apache2/sites-available/000-default.conf
+
+      - name: Creating a symlink
+        ansible.builtin.file:
+          src: "/etc/apache2/sites-available/000-default.conf"
+          dest: "/etc/apache2/sites-enabled/000-default.conf"
+          state: link
+
+      - name: Starting service apache2
+        service:
+          name: apache2
+          state: started 
+
+      - name: Getting the status of the service
+        shell: systemctl status apache2 | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout 
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/magento2-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/magento2-cleanup.sh && /opt/cloudstack/magento2-cleanup.sh"
+          state: present
+         
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
