@@ -54,6 +54,17 @@
       - debug:
           var: status.stdout 
 
+      - name: Replacing the port
+        replace:
+          path: /etc/apache2/ports.conf
+          regexp: '80'
+          replace: '127.0.0.1:8080'
+
+      - name: Restart apache
+        service:
+           name: apache2
+           state: restarted 
+
       - debug:
          msg: "Installing Mysql"
 
@@ -179,6 +190,61 @@
         ansible.builtin.file:
           path: /usr/local/bin/composer
           mode: '0755'
+
+      - name: Adding key elasticsearch
+        apt_key:
+          url: https://artifacts.elastic.co/GPG-KEY-elasticsearch
+          state: present
+
+      - name: Adding repo elasticsearch
+        ansible.builtin.apt_repository:
+          repo: "deb https://artifacts.elastic.co/packages/7.x/apt stable main"
+          state: present
+
+      - name: Adding key varnish
+        apt_key:
+          url: https://packagecloud.io/varnishcache/varnish64/gpgkey
+          state: present
+
+      - name: Adding repo varnish
+        ansible.builtin.apt_repository:
+          repo: "deb https://packagecloud.io/varnishcache/varnish64/ubuntu/ xenial  main"
+          state: present
+
+      - name: Download varnish dependencies
+        ansible.builtin.get_url:
+          url: https://repo.percona.com/apt/pool/main/j/jemalloc/libjemalloc1_3.6.0-2.focal_amd64.deb
+          dest: /usr/local/src/
+      
+      - name: Installing varnish dependencies 
+        apt: 
+          deb: /usr/local/src/libjemalloc1_3.6.0-2.focal_amd64.deb
+          
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+      
+      - name: Installing Elasticsearch 
+        apt: 
+          name: elasticsearch
+          state: present
+
+      - name: Enable services and start
+        ansible.builtin.systemd:
+          name: elasticsearch
+          state: started
+          enabled: true
+
+      - name: Installing varnish 
+        apt: 
+          name: varnish
+          state: present
+
+      - name: Enable services and start
+        ansible.builtin.systemd:
+          name: varnish
+          state: started
+          enabled: true
 
       - name: Creating a directory for shell script
         ansible.builtin.file:
