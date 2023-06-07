@@ -177,6 +177,11 @@
       - debug:
           var: phpversion.stdout_lines 
 
+      - name: Installation PHP dependencies
+        apt: 
+          name: [ 'php8.1-xml' , 'php8.1-curl' , 'php8.1-zip' , 'php8.1-bcmath' , 'php8.1-soap' , 'php8.1-mysql' , 'php8.1-mbstring' , 'php8.1-intl' , 'php8.1-imagick' , 'php8.1-gd' , 'php8.1-bz2']
+          state: present
+
       - name: Installing Composer
         shell: chmod +x /usr/local/src/magento2-20-04/composer.sh && /usr/local/src/magento2-20-04/composer.sh
 
@@ -245,6 +250,42 @@
           name: varnish
           state: started
           enabled: true
+
+      - name: Generating secret key file for varnish 
+        shell: uuidgen | sudo tee /etc/varnish/secret
+
+      - name: Setting permission for the secret key file for varnish 
+        ansible.builtin.file:
+          path: /etc/varnish/secret
+          mode: '0600'         
+
+      - name: Replacing the service file
+        replace:
+          path: /lib/systemd/system/varnish.service
+          regexp: 'ExecStart'
+          replace: '#ExecStart'
+
+      - name: Replacing the service file
+        lineinfile:
+          path: /lib/systemd/system/varnish.service
+          insertafter: "#ExecStart"
+          line: 'ExecStart=/usr/sbin/varnishd -j unix,user=vcache -a :80 -T localhost:6081 -f /etc/varnish/default.vcl -S /etc/varnish/secret -s Cache=malloc,256m -s Transient=malloc,64m 
+                -p listen_depth=16383 
+                -p thread_pool_stack=512k 
+                -p thread_pools=2 
+                -p http_resp_hdr_len=65536 
+                -p http_resp_size=98304 
+                -p workspace_client=256k 
+                -p workspace_backend=256k'
+
+      - name: Reload Daemon
+        ansible.builtin.systemd:
+          daemon_reload: true
+
+      - name: Restart varnish
+        service:
+           name: varnish
+           state: restarted 
 
       - name: Creating a directory for shell script
         ansible.builtin.file:
