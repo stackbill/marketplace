@@ -187,7 +187,7 @@ echo -en "\n"
         * ) echo "Please answer y or n.";;
     esac
 
-sudo -u www-data php bin/magento module:disable Magento_TwoFactorAuth
+sudo -u www-data php bin/magento module:disable Magento_AdminAdobeImsTwoFactorAuth Magento_TwoFactorAuth
 
 sudo -u www-data php bin/magento cache:clean
 rm -rf /var/www/html/generated
@@ -199,7 +199,7 @@ sudo -u www-data php bin/magento config:set web/secure/base_media_url "https://$
 
 sudo -u www-data php bin/magento setup:config:set --http-cache-hosts="127.0.0.1:80"
 
-sudo -u www-data php /opt/digitalocean/update_config.php
+sudo -u www-data php /opt/cloudstack/update_config.php
 sudo -u www-data php bin/magento cron:install --force
 
 chown -Rf www-data:www-data /var/www/
