@@ -60,8 +60,18 @@
           regexp: '80'
           replace: '127.0.0.1:8080'
 
-      - name: Enable mod-rewrite
-        shell: a2enmod rewrite
+      - name: Enable apache module
+        shell: "{{ item }}"
+        with_items:
+          - a2enmod rewrite
+          - a2enmod headers 
+          - a2enmod expires 
+          - a2enmod proxy 
+          - a2enmod proxy_balancer 
+          - a2enmod proxy_fcgi 
+          - a2enmod proxy_http 
+          - a2enmod slotmem_shm 
+          - a2enmod socache_shmcb 
 
       - name: Restart apache
         service:
@@ -313,6 +323,11 @@
           group: www-data
           recurse: yes
 
+      - name: Installing postfix
+        apt:
+          name: [ 'postfix' , 'mailutils' ]
+          state: latest  
+          
       - name: Creating a directory for shell script
         ansible.builtin.file:
           path: /opt/cloudstack
@@ -325,6 +340,7 @@
         with_items: 
           - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/magento2-cleanup.sh', confdest: '/opt/cloudstack/'}     
           - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/update_config.php', confdest: '/opt/cloudstack/'}     
+          - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/auth.json-def', confdest: '/opt/cloudstack/'}     
           
       - name: Adding a line for shell script
         lineinfile:

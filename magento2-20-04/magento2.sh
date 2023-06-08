@@ -8,6 +8,8 @@ cd /usr/local/src/magento2-20-04/var/www/html/ && wget https://raw.githubusercon
 
 cd /usr/local/src/magento2-20-04/var/www/.config/composer/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/var/www/.config/composer/auth.json
 
+cd /usr/local/src/magento2-20-04/opt/cloudstack/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/opt/cloudstack/auth.json-def
+
 cd /usr/local/src/magento2-20-04/opt/cloudstack/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/opt/cloudstack/magento2-cleanup.sh
 
 cd /usr/local/src/magento2-20-04/opt/cloudstack/ && wget https://raw.githubusercontent.com/stackbill/marketplace/main/_common-files/opt/cloudstack/update_config.php
