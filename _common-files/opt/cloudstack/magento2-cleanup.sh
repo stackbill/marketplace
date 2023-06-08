@@ -202,6 +202,10 @@ sudo -u www-data php bin/magento setup:config:set --http-cache-hosts="127.0.0.1:
 sudo -u www-data php /opt/cloudstack/update_config.php
 sudo -u www-data php bin/magento cron:install --force
 
+rm -rf /var/www/.config/composer/auth.json
+
+cp /opt/cloudstack/auth.json-def /var/www/.config/composer/auth.json
+
 chown -Rf www-data:www-data /var/www/
 
 sleep 5
@@ -210,3 +214,4 @@ echo "Installation complete. Access your new Magento site http://$dom/ in a brow
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
+rm -rf /opt/cloudstack
