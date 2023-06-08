@@ -287,6 +287,17 @@
            name: varnish
            state: restarted 
 
+      - name: Creating a directory auth.json
+        ansible.builtin.file:
+          path: /var/www/.config/composer
+          state: directory 
+          recurse: yes
+
+      - name: Copying auth.json
+        copy:
+          src: /usr/local/src/magento2-20-04/var/www/.config/composer/auth.json 
+          dest: /var/www/.config/composer/
+
       - name: Creating a directory for shell script
         ansible.builtin.file:
           path: /opt/cloudstack
