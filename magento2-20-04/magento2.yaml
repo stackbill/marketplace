@@ -13,7 +13,7 @@
 
       - name: Installing apache
         apt:
-          name: [ 'apache2' , 'python3-certbot-apache' ]
+          name: [ 'apache2' , 'python3-certbot-apache', 'zip' ]
           state: latest
 
       - name: Removing site files
@@ -287,6 +287,11 @@
            name: varnish
            state: restarted 
 
+      - name: Installing redis server 
+        apt:
+          name: redis
+          state: latest
+          
       - name: Creating a directory auth.json
         ansible.builtin.file:
           path: /var/www/.config/composer
