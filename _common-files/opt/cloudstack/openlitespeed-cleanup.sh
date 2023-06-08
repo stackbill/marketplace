@@ -76,3 +76,4 @@ chown www-data. /tmp/lshttpd/ -R
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
+rm -rf /opt/cloudstack

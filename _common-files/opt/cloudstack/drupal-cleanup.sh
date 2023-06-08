@@ -169,3 +169,4 @@ echo -e "${RED}Installation completed. Access your new Drupal-Lomp site in a bro
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
+rm -rf /opt/cloudstack
