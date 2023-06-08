@@ -135,3 +135,4 @@ echo -e "${RED}Installation completed. Access your new WordPress site in a brows
 
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
+rm -rf /opt/cloudstack
