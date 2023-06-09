@@ -81,7 +81,8 @@
           - a2enmod proxy_http 
           - a2enmod slotmem_shm 
           - a2enmod socache_shmcb 
-
+          - a2enmod ssl
+          
       - name: Restart apache
         service:
            name: apache2
