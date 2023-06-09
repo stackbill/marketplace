@@ -127,7 +127,7 @@ echo -en "\n\n"
 
                 cd /etc/apache2/sites-available/
                 a2ensite default-ssl.conf
-                sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-enabled/default-ssl.conf
+                sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-available/default-ssl.conf
                 systemctl reload apache2
                 cd ~
 
