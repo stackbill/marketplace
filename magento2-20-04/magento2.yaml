@@ -31,16 +31,23 @@
           dest: "{{ item.confdest }}"
         with_items: 
           - { confsrc: '/usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2.conf', confdest: '/etc/apache2/sites-available/'}
+          - { confsrc: '/usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2-ssl.conf', confdest: '/etc/apache2/sites-available/'}
           - { confsrc: '/usr/local/src/magento2-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
 
       - name: Renaming the file
-        shell: mv /etc/apache2/sites-available/magento2.conf /etc/apache2/sites-available/000-default.conf
+        shell: "{{ item }}"
+        with_items:
+          - mv /etc/apache2/sites-available/magento2.conf /etc/apache2/sites-available/000-default.conf
+          - mv /etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/default-ssl.conf
 
       - name: Creating a symlink
         ansible.builtin.file:
-          src: "/etc/apache2/sites-available/000-default.conf"
-          dest: "/etc/apache2/sites-enabled/000-default.conf"
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
           state: link
+        with_items: 
+          - { confsrc: '/etc/apache2/sites-available/000-default.conf', confdest: '/etc/apache2/sites-enabled/000-default.conf'}
+          - { confsrc: '/etc/apache2/sites-available/default-ssl.conf', confdest: '/etc/apache2/sites-enabled/default-ssl.conf'}
 
       - name: Starting service apache2
         service:

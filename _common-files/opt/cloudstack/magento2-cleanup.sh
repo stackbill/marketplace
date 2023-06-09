@@ -112,6 +112,36 @@ done
 
 echo -en "\n\n\n"
 
+#SSL configuration
+echo -en "\n\n\n"
+echo "Next, you have the option of configuring LetsEncrypt to secure your new site."
+echo "Before doing this, be sure that you have pointed your domain or subdomain to this server's IP address."
+echo "You can also run LetsEncrypt certbot later with the command 'certbot'"
+echo -en "\n\n"
+ read -p "Would you like to use LetsEncrypt (certbot) to configure SSL(https) for your new site? (y/n): " yn
+    case $yn in
+        [Yy]* )
+                systemctl stop apache2;
+                certbot certonly --standalone --preferred-challenges http --http-01-port 8080 -d "$dom";
+                systemctl start apache2;
+
+                cd /etc/apache2/sites-available/
+                a2ensite default-ssl.conf
+                sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-enabled/default-ssl.conf
+                systemctl reload apache2
+                cd ~
+
+                secure="1";
+                echo "Magento has been enabled at https://$dom/  Please open this URL in a browser after installation process.";;
+        [Nn]* )
+                a2dismod ssl;
+                cp /etc/varnish/default.vcl.original /etc/varnish/default.vcl
+                systemctl restart varnish
+
+                echo "Skipping LetsEncrypt certificate generation";;
+        * ) echo "Please answer y or n.";;
+    esac
+
 # Configure SMTP messages to Magento 2 admin email
 cat > /etc/aliases <<EOM
 postmaster:    root
