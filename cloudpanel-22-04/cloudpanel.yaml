@@ -13,7 +13,7 @@
 
       - name: Installing CloudPanel
         shell: curl -sS https://installer.cloudpanel.io/ce/v2/install.sh -o /usr/local/src/install.sh; \
-                echo "e0838864b7376b0390b4855d8d5c1425d83edffb38d2c980cf5b1c1a71d105bc /usr/local/src/install.sh" | \
+                echo "3c30168958264ced81ca9b58dbc55b4d28585d9066b9da085f2b130ae91c50f6 /usr/local/src/install.sh" | \
                 sha256sum -c && sudo bash /usr/local/src/install.sh
         register: cloudout
 
