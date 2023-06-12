@@ -107,7 +107,7 @@ while [[ "$flag" = false ]]; do
         fi
 done
 
-echo -en "\n\n\n"
+echo -en "\n"
 
 #SSL configuration
 echo -en "\n\n\n"
@@ -125,7 +125,7 @@ echo -en "\n\n"
                 cd /etc/apache2/sites-available/
                 a2ensite default-ssl.conf
                 sed -i "s/\$domain/$dom/g"  /etc/apache2/sites-available/default-ssl.conf
-                ln -s /etc/apache2/sites-available/default-ssl.conf /etc/apache2/sites-enabled/
+                # ln -s /etc/apache2/sites-available/default-ssl.conf /etc/apache2/sites-enabled/
                 systemctl reload apache2
                 cd ~
 
