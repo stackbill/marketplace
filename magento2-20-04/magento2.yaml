@@ -84,10 +84,10 @@
           - a2enmod socache_shmcb 
           - a2enmod ssl
           
-      - name: Restart apache
-        service:
-           name: apache2
-           state: restarted 
+      # - name: Restart apache
+      #   service:
+      #      name: apache2
+      #      state: restarted 
 
       - debug:
          msg: "Installing Mysql"
