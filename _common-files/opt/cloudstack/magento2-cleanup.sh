@@ -23,7 +23,7 @@ echo
 cat /root/.magento_database_details
 echo
 
-cp /usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/
+cp /usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/default-ssl.conf
 
 cp /usr/local/src/magento2-20-04/etc/letsencrypt/options-ssl-apache.conf /etc/letsencrypt/
 
