@@ -33,15 +33,15 @@
           dest: "{{ item.confdest }}"
         with_items: 
           - { confsrc: '/usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2.conf', confdest: '/etc/apache2/sites-available/'}
-          # - { confsrc: '/usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2-ssl.conf', confdest: '/etc/apache2/sites-available/'}
+          - { confsrc: '/usr/local/src/magento2-20-04/etc/apache2/sites-available/magento2-ssl.conf', confdest: '/etc/apache2/sites-available/'}
           - { confsrc: '/usr/local/src/magento2-20-04/var/www/html/index.html', confdest: '/var/www/html/'}
-          # - { confsrc: '/usr/local/src/magento2-20-04/etc/letsencrypt/options-ssl-apache.conf', confdest: '/etc/letsencrypt/'}
+          - { confsrc: '/usr/local/src/magento2-20-04/etc/letsencrypt/options-ssl-apache.conf', confdest: '/etc/letsencrypt/'}
 
       - name: Renaming the file
         shell: "{{ item }}"
         with_items:
           - mv /etc/apache2/sites-available/magento2.conf /etc/apache2/sites-available/000-default.conf
-          # - mv /etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/default-ssl.conf
+          - mv /etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/default-ssl.conf
 
       - name: Creating a symlink
         ansible.builtin.file:
