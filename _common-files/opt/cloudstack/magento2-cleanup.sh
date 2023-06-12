@@ -133,7 +133,7 @@ echo -en "\n\n"
                 echo "Magento has been enabled at https://$dom/  Please open this URL in a browser after installation process.";;
         [Nn]* )
                 a2dismod ssl;
-                cp /etc/varnish/default.vcl.original /etc/varnish/default.vcl
+                cp /etc/varnish/default.vcl /etc/varnish/default.vcl.original
                 systemctl restart varnish
 
                 echo "Skipping LetsEncrypt certificate generation";;
