@@ -41,7 +41,7 @@
         shell: "{{ item }}"
         with_items:
           - mv /etc/apache2/sites-available/magento2.conf /etc/apache2/sites-available/000-default.conf
-          - mv /etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/default-ssl.conf
+          # - mv /etc/apache2/sites-available/magento2-ssl.conf /etc/apache2/sites-available/default-ssl.conf
 
       - name: Creating a symlink
         ansible.builtin.file:
