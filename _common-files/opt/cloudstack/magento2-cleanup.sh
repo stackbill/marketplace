@@ -149,7 +149,7 @@ sudo newaliases
 
 cd /var/www
 
-echo "Download Magento 2..."
+echo "Downloading Magento 2..."
 
 sudo -u www-data composer create-project --prefer-dist --no-dev --repository-url=https://repo.magento.com/ magento/project-community-edition=2.4.* magento2
 
