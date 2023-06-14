@@ -341,8 +341,11 @@
           
       - name: Creating a directory for shell script
         ansible.builtin.file:
-          path: /opt/cloudstack
-          state: directory         
+          path: "{{ item }}"
+          state: directory
+        with_items:
+          - /opt/cloudstack
+          - /opt/ssl_config
           
       - name: Copy files for shell script
         copy:
@@ -352,7 +355,8 @@
           - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/magento2-cleanup.sh', confdest: '/opt/cloudstack/'}     
           - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/update_config.php', confdest: '/opt/cloudstack/'}     
           - { confsrc: '/usr/local/src/magento2-20-04/opt/cloudstack/auth.json-def', confdest: '/opt/cloudstack/'}     
-          
+          - { confsrc: '/usr/local/src/magento2-20-04/opt/ssl_config/ssl.sh', confdest: '/opt/ssl_config/'}     
+         
       - name: Adding a line for shell script
         lineinfile:
           path: /root/.bashrc
