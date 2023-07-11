@@ -10,7 +10,7 @@
 
       - name: Installing Java
         apt: 
-          name: [ 'openjdk-11-jre-headless' , 'openjdk-11-jdk' ]
+          name: [ 'openjdk-11-jre-headless' , 'openjdk-11-jdk', 'kafkacat' ]
           state: present
 
       - name: Generating shell user password

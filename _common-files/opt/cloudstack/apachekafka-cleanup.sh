@@ -18,6 +18,28 @@ echo
 cat /root/.shell_user_passwords
 echo
 
+echo -e "
+********************************************************************************
+Welcome to Kafka/ZooKeeper Instance.
+Kafka is running as a systemd service (kafka.service).
+
+To get started on this server:
+
+ 1. Create a topic
+
+    /opt/kafka/bin/kafka-topics.sh --create --topic quickstart --bootstrap-server localhost:9092
+
+ 2. Produce your first event
+
+    echo 'Hello, World!' | /opt/kafka/bin/kafka-console-producer.sh --topic quickstart --bootstrap-server localhost:9092
+
+ 3. Consume the event
+
+    /opt/kafka/bin/kafka-console-consumer.sh --from-beginning --max-messages 1 --topic quickstart --bootstrap-server localhost:9092
+
+********************************************************************************
+"
+
 #Cleanup script
 rm -rf /usr/local/src/
 mkdir -p /usr/local/src/
