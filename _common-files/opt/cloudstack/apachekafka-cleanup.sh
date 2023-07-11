@@ -31,7 +31,7 @@ To get started on this server:
 
  2. Produce your first event
 
-    echo 'Hello, World!' | /opt/kafka/bin/kafka-console-producer.sh --topic quickstart --bootstrap-server localhost:9092
+    echo 'Hello, CloudPortal!' | /opt/kafka/bin/kafka-console-producer.sh --topic quickstart --bootstrap-server localhost:9092
 
  3. Consume the event
 
