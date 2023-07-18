@@ -1,0 +1,103 @@
+- name: Varnish Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+       
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing Dependencies for varnish
+        apt:
+          name: [ 'debian-archive-keyring' , 'curl', 'gnupg', 'apt-transport-https' ]
+          state: present 
+
+      - name: Installing Packages
+        shell: curl -s https://packagecloud.io/install/repositories/varnishcache/varnish60lts/script.deb.sh | sudo bash
+      
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing varnish 
+        apt: 
+          name: varnish=6.0.11-1~focal
+          state: present
+
+      - name: Renaming the configuration file
+        shell: mv /etc/varnish/default.vcl /etc/varnish/default.vcl-org
+
+      - name: Creating a directory for varnish service file
+        ansible.builtin.file:
+          path: /etc/systemd/system/varnish.service.d
+          state: directory  
+
+      - name: Copy varnish file
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/varnish-20-04/etc/systemd/system/override.conf', confdest: '/etc/systemd/system/varnish.service.d/'}     
+          - { confsrc: '/usr/local/src/varnish-20-04/etc/varnish/welcome.html', confdest: '/etc/varnish/'}     
+          - { confsrc: '/usr/local/src/varnish-20-04/etc/varnish/default.vcl', confdest: '/etc/varnish/'}     
+
+      - name: Reload Daemon
+        ansible.builtin.systemd:
+          daemon_reload: true
+          
+      - name: Enable services and start
+        ansible.builtin.systemd:
+          name: varnish
+          state: started
+          enabled: true
+
+      - name: Generating secret key file for varnish 
+        shell: uuidgen | sudo tee /etc/varnish/secret
+
+      - name: Setting permission for the secret key file for varnish 
+        ansible.builtin.file:
+          path: /etc/varnish/secret
+          mode: '0600'        
+
+      - name: Download varnishgather
+        ansible.builtin.get_url:
+          url: https://raw.githubusercontent.com/varnish/varnishgather/master/varnishgather
+          dest: /usr/local/sbin/varnishgather
+
+      - name: Setting permission for varnishgather
+        ansible.builtin.file:
+          path: /usr/local/sbin/varnishgather
+          mode: '0755'
+
+      - name: Creating a symlink
+        ansible.builtin.file:
+          src: /usr/local/sbin/varnishgather
+          dest: /etc/varnish/varnishgather.sh
+          state: link
+
+      - name: Restart varnish
+        service:
+           name: varnish
+           state: restarted 
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory         
+          
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items: 
+          - { confsrc: '/usr/local/src/varnish-20-04/opt/cloudstack/varnish-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/varnish-cleanup.sh && /opt/cloudstack/varnish-cleanup.sh"
+          state: present  
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd" 
