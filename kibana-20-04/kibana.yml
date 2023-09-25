@@ -1,0 +1,196 @@
+- name: Elasticsearch Setup
+  hosts: localhost
+  tasks:
+
+#1 - Disable ssh access and restart the ssh service
+  - name: Restarting sshd
+    shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+      cache_valid_time: 3600
+
+# Install and configure the Elasticsearch app
+
+# 3 - Install Java
+  - name: Install Java
+    apt:
+      name: openjdk-11-jdk
+      state: present
+
+# 4 - Download and install the public signing key 
+  - name: Download and install the public signing key 
+    shell: curl -fsSL https://artifacts.elastic.co/GPG-KEY-elasticsearch |sudo gpg --dearmor -o /usr/share/keyrings/elastic.gpg
+
+# 5 - Install apt-transport-https
+  - name: Install apt-transport-https
+    apt:
+      name: 
+        - apt-transport-https
+        - nginx
+        - certbot
+        - python3-certbot-nginx
+      state: present
+
+# 6 - Save the repository definition to /etc/apt/sources.list.d/elastic-8.x.list
+  - name: Save the repository definition to /etc/apt/sources.list.d/elastic-8.x.list
+    shell: echo "deb [signed-by=/usr/share/keyrings/elastic.gpg] https://artifacts.elastic.co/packages/7.x/apt stable main" | sudo tee -a /etc/apt/sources.list.d/elastic-7.x.list
+
+# 7 - Update system cache
+  - name: Update system cache
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 8 - Install Elasticsearch
+  - name: Install Elasticsearch
+    apt:
+      name: elasticsearch
+      state: present
+
+# 9 - start and enable nginx
+  - name: start and enable nginx
+    ansible.builtin.service:
+      name: nginx
+      state: started
+      enabled: yes
+
+
+# 10 - Copy kibana from /usr/local/src/kibana/Kibana to /etc/nginx/sites-available/
+  - name: Copy kibana config file to nginx 
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/kibana/kibana', confdest: '/etc/nginx/sites-available/'}
+
+# 11 - Create a symbolic link for kibana
+  - name: Create a symbolic link for kibana
+    ansible.builtin.file:
+      src: /etc/nginx/sites-available/kibana
+      dest: /etc/nginx/sites-enabled/kibana
+      state: link
+
+# 12 - Remove the default file from sites-enabled
+  - name: Remove the default file from sites-enabled
+    ansible.builtin.file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
+
+# 13  - Generate a random password for kibanaadmin user
+  - name: Generate a random password for kibanaadmin user
+    shell: openssl rand -hex 24
+    register: kibanapassword
+
+# 14 - Store the password in the /root/.kibanaadmin
+  - name: Store the password in the /root/.kibanaadmin
+    shell: echo "{{ kibanapassword.stdout }}" > /root/.kibanaadmin
+
+# 15 - Encrypt the created password using openssl and store it in /etc/nginx/htpasswd.users
+  - name: Encrypt the created password using openssl and store it in /etc/nginx/htpasswd.users
+    shell: echo "kibanaadmin:`openssl passwd -apr1 {{ kibanapassword.stdout }}`" | sudo tee -a /etc/nginx/htpasswd.users
+
+# 16 - Configure elasticsearch
+  - name: Configure elasticsearch
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      regexp: '^#network.host'
+      line: 'network.host: localhost'
+      state: present
+      backup: yes
+
+# 17 - Start and enable elasticsearch
+  - name: Start and enable elasticsearch
+    ansible.builtin.service:
+      name: elasticsearch
+      state: started
+      enabled: yes
+
+# Install and configure the Kibana app
+
+# 18 - Install Kibana
+  - name: Install Kibana
+    apt:
+      name: kibana
+      state: present
+
+# 19 - Configure Kibana
+  - name: Configure Kibana
+    lineinfile:
+      path: /etc/kibana/kibana.yml
+      regexp: '^#server.host'
+      line: 'server.host: "localhost"'
+      state: present
+      backup: yes
+
+# 20 - Allow the port  5601 in kibana configure file
+  - name: Configure Kibana
+    lineinfile:
+      path: /etc/kibana/kibana.yml
+      regexp: '^#server.port'
+      line: 'server.port: 5601'
+      state: present
+      backup: yes
+
+# 21 - start and enable kibana
+  - name: start and enable kibana
+    ansible.builtin.service:
+      name: kibana
+      state: started
+      enabled: yes
+
+# Install and configure the Logstash app
+
+# 22 - Install Logstash
+  - name: Install Logstash
+    apt:
+      name: logstash
+      state: present
+
+# 23 - Create a configuration file called 02-beats-input.conf
+  - name: Create a configuration file called 02-beats-input.conf
+    shell: echo "input { beats { port => 5044 } }" > /etc/logstash/conf.d/02-beats-input.conf
+
+# 24 - Copy the 30-elasticsearch-output.conf from /usr/loal/src/kibana to  /etc/logstash/conf.d/
+  - name: Copy the 30-elasticsearch-output.conf from /usr/loal/src to  /etc/logstash/conf.d/
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/kibana/30-elasticsearch-output.conf', confdest: '/etc/logstash/conf.d/'}
+
+# 25 - start and enable logstash
+  - name: start and enable logstash
+    ansible.builtin.service:
+      name: logstash
+      state: started
+      enabled: yes
+
+# 26 - create a cloudstack directory
+  - name: Creating a directory for shell script
+    ansible.builtin.file:
+      path: /opt/kibana
+      state: directory         
+
+# 27 - copy the shell script from /opt/ to /opt/cloudstack     
+  - name: Copy files for shell script
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/kibana/kibana-cleanup.sh', confdest: '/opt/kibana'}  
+
+# 28 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /opt/kibana/kibana-cleanup.sh && /opt/kibana/kibana-cleanup.sh"
+      state: present
+
+# 29 - Enable the ssh  acess and restart the sshd service   
+  - name: Restarting sshd
+    shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
