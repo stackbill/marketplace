@@ -1,0 +1,103 @@
+# Install and Configure Elasticsearch 8.X on Ubuntu 20.04
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/deb.html#deb
+# https://www.elastic.co/guide/en/elasticsearch/reference/current/install-elasticsearch.html
+
+- name: Elasticsearch Setup
+  hosts: localhost
+  tasks:
+
+#1 - Disable ssh access and restart the ssh service
+  - name: Restarting sshd
+    shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+      cache_valid_time: 3600
+
+# 3 - Install Java
+  - name: Install Java
+    apt:
+      name: openjdk-11-jdk
+      state: present
+
+# 4 - Download and install the public signing key 
+  - name: Download and install the public signing key 
+    shell: wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg
+
+
+# 5 - Install apt-transport-https
+  - name: Install apt-transport-https
+    apt:
+      name: apt-transport-https
+      state: present
+
+# 6 - Save the repository definition to /etc/apt/sources.list.d/elastic-8.x.list
+  - name: Save the repository definition to /etc/apt/sources.list.d/elastic-8.x.list
+    shell: echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-8.x.list
+
+# 7 - Update system cache
+  - name: Update system cache
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 8 - Install Elasticsearch
+  - name: Install Elasticsearch
+    apt:
+      name: elasticsearch
+      state: present
+
+# 9 - Configure elasticsearch
+  - name: Configure elasticsearch
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      regexp: '^#network.host'
+      line: 'network.host: 0.0.0.0'
+      state: present
+      backup: yes
+
+  - name: Configure elasticsearch
+    lineinfile:
+      path: /etc/elasticsearch/elasticsearch.yml
+      regexp: '^#http.port'
+      line: 'http.port: 9200'
+      state: present
+      backup: yes
+
+# 10 - Start and enable elasticsearch
+  - name: Start and enable elasticsearch
+    ansible.builtin.service:
+      name: elasticsearch
+      state: started
+      enabled: yes
+
+# 11 - Reset the user elastic password and store it in a file
+  - name: Reset the user elastic password and store it in a file
+    shell: echo "y" | /usr/share/elasticsearch/bin/elasticsearch-reset-password -u elastic -f 2>/dev/null | awk '/^New value:/{print $NF}' > /root/.password
+
+# 12 - create a cloudstack directory
+  - name: Creating a directory for shell script
+    ansible.builtin.file:
+      path: /opt/Elasticsearch
+      state: directory         
+
+# 13 - copy the shell script from /opt/ to /opt/cloudstack     
+  - name: Copy files for shell script
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/elasticsearch/elasticsearch-cleanup.sh', confdest: '/opt/Elasticsearch'}  
+
+# 14 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /opt/Elasticsearch/elasticsearch-cleanup.sh && /opt/Elasticsearch/elasticsearch-cleanup.sh"
+      state: present
+
+# 15 - Enable the ssh  acess and restart the sshd service   
+  - name: Restarting sshd
+    shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
