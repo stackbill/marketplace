@@ -1,0 +1,115 @@
+# Install Jitsi Meet on ubuntu 20.04 and 22.04 based on the official quick install guide
+# https://jitsi.github.io/handbook/docs/devops-guide/devops-guide-quickstart
+
+- name: Jitsi Setup
+  hosts: localhost
+  tasks:
+#1 - Disable ssh access and restart the ssh service
+  - name: Restarting sshd
+    shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 3 - Install the required packages
+  - name: Install required packages
+    ansible.builtin.apt:
+      name: "{{ packages }}"
+      state: present
+    vars:
+      packages:
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - gnupg2
+        - nginx-full
+        - wget
+        - software-properties-common
+        - certbot
+        - python3-certbot-nginx
+
+# 4 - Enable the universe repository
+  - name: enable the universe repository
+    shell: apt-add-repository universe
+
+# 5 - Update System packages
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 6 - Check if the Os version is 20 or 22
+  - name: Check if the Os version is 20 or 22
+    shell: lsb_release -rs
+    register: os_version
+
+# 7 -  If the OS version is ubuntu 20.04 then Add the Prosody package repository
+  - name: Add the Prosody package repository
+    shell: |
+      echo deb http://packages.prosody.im/debian $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list
+      wget https://prosody.im/files/prosody-debian-packages.key -O- | sudo apt-key add -
+    when: os_version.stdout == "20.04"
+
+# 8 - If the OS version is ubuntu 22.04 then Add the Prosody package repository
+  - name: Add the Prosody package repository
+    shell: |
+      echo deb http://packages.prosody.im/debian $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list
+      wget https://prosody.im/files/prosody-debian-packages.key -O- | sudo apt-key add -
+    when: os_version.stdout == "22.04"
+
+# 9 - Add the Jitsi package repository if the OS version is ubuntu 20.04
+  - name: Add the Jitsi package repository
+    shell: |
+        curl https://download.jitsi.org/jitsi-key.gpg.key | sudo sh -c 'gpg --dearmor > /usr/share/keyrings/jitsi-keyring.gpg'
+        echo 'deb [signed-by=/usr/share/keyrings/jitsi-keyring.gpg] https://download.jitsi.org stable/' | sudo tee /etc/apt/sources.list.d/jitsi-stable.list > /dev/null
+    when: os_version.stdout == "20.04"
+
+# 9 - Add the Jitsi package repository if the OS version is ubuntu 22.04
+  - name: Add the Jitsi package repository
+    shell: |
+       curl -sL https://download.jitsi.org/jitsi-key.gpg.key | sudo sh -c 'gpg --dearmor > /usr/share/keyrings/jitsi-keyring.gpg'
+       echo "deb [signed-by=/usr/share/keyrings/jitsi-keyring.gpg] https://download.jitsi.org stable/" | sudo tee /etc/apt/sources.list.d/jitsi-stable.list
+    when: os_version.stdout == "22.04"
+
+# 10 - Update System packages
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 18 - Change the default processes and open files on server
+  - name: Change the default processes and open files on server
+    shell: |
+      echo "DefaultLimitNOFILE=65000" >> /etc/systemd/system.conf
+      echo "DefaultLimitNPROC=65000" >> /etc/systemd/system.conf
+      echo "DefaultTasksMax=65000" >> /etc/systemd/system.conf
+
+# 19 - Restart the systemd daemon
+  - name: Restart the systemd daemon
+    shell: systemctl daemon-reload
+
+# 7 - create a cloudstack directory
+  - name: Creating a directory for shell script
+    ansible.builtin.file:
+      path: /opt/JitsiMeet                                                                                                                                              
+      state: directory  
+
+# 8 - copy the shell script from /opt/ to /opt/cloudstack     
+  - name: Copy files for shell script
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/JitsiMeet/JitsiMeet-cleanup.sh', confdest: '/opt/JitsiMeet'}  
+
+# 9 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /opt/JitsiMeet/JitsiMeet-cleanup.sh && /opt/JitsiMeet/JitsiMeet-cleanup.sh"
+      state: present
+
+# 10 - Enable the ssh  acess and restart the sshd service   
+  - name: Restarting sshd
+    shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
