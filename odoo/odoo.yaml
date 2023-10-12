@@ -1,0 +1,125 @@
+# Install Odoo on ubuntu 20.04  and 22.04
+# https://www.tecmint.com/install-odoo-in-ubuntu/
+
+
+- name: Odoo Setup
+  hosts: localhost
+  tasks:
+
+# #1 - Disable ssh access and restart the ssh service
+#   - name: Restarting sshd
+#     shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    apt:
+      update_cache: yes
+      cache_valid_time: 3600
+
+# 3 - Install the requried Packages
+  - name: Install requried Packages
+    apt:
+      name:
+        - postgresql
+        - nginx
+        - apt-transport-https
+        - ca-certificates
+        - curl
+        - software-properties-common
+        - certbot
+        - python3-certbot-nginx
+      state: present
+
+# 4 - Start and enable nnginx and postgresql
+  - name: Start and enable nnginx and postgresql
+    service:
+      name: "{{ item }}"
+      state: started
+      enabled: yes
+    with_items:
+      - postgresql
+      - nginx
+
+# 5 - Check the ubuntu OS version and register the result
+  - name: Check the ubuntu OS version and register the result
+    shell: lsb_release -rs
+    register: ubuntu_version
+
+# 7 - If the OS version is 22.04 wget the wkhtmltopdf application
+  - name: If the OS version is 22.04 wget the wkhtmltopdf application
+    shell: wget  https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6.1-2/wkhtmltox_0.12.6.1-2.jammy_amd64.deb
+    when: ubuntu_version.stdout.find('Ubuntu 22.04') != -1
+
+# 8 - If the OS version is 20.04 wget the wkhtmltopdf application
+  - name: If the OS version is 20.04 wget the wkhtmltopdf application
+    shell: https://github.com/wkhtmltopdf/packaging/releases/download/0.12.6-1/wkhtmltox_0.12.6-1.focal_amd64.deb
+    when: ubuntu_version.stdout.find('Ubuntu 20.04') != -1
+
+# 9 - Install the wkhtmltopdf application
+  - name: Install the wkhtmltopdf application
+    shell: dpkg -i wkhtmltox_0.12.6-1.focal_amd64.deb
+    when: ubuntu_version.stdout.find('Ubuntu 20.04') != -1
+
+# 10 - Install the wkhtmltopdf application
+  - name: Install the wkhtmltopdf application
+    shell: dpkg -i wkhtmltox_0.12.6.1-2.jammy_amd64.deb
+    when: ubuntu_version.stdout.find('Ubuntu 22.04') != -1
+
+# 11 - Download and add the Odoo repository key
+  - name: Download and add the Odoo repository key
+    shell: wget -q -O - https://nightly.odoo.com/odoo.key | sudo gpg --dearmor -o /usr/share/keyrings/odoo-archive-keyring.gpg
+
+# 12 - Add the Odoo repository
+  - name: Add the Odoo repository
+    shell: echo 'deb [signed-by=/usr/share/keyrings/odoo-archive-keyring.gpg] https://nightly.odoo.com/16.0/nightly/deb/ ./' | sudo tee /etc/apt/sources.list.d/odoo.list
+  
+# 13 - Update the apt cache
+  - name: Update the apt cache
+    apt:
+      update_cache: yes
+
+# 14 - Install Odoo
+  - name: Install Odoo
+    apt:
+      name: odoo
+      state: present
+
+# 15 - start and enable the odoo service
+  - name: start and enable the odoo service
+    service:
+      name: odoo
+      state: started
+      enabled: yes
+
+# 16 - Copy odoo.conf from "/usr/local/src/odoo" to "/etc/nginx/conf.d/"
+  - name: Copy odoo.conf from "/usr/local/src/odoo" to "/etc/nginx/conf.d/"
+    copy:
+      src: /usr/local/src/odoo/odoo.conf
+      dest: /etc/nginx/conf.d/odoo.conf
+
+# 17 - create a cloudstack directory
+  - name: Creating a directory for shell script
+    file:
+      path: /opt/odoo
+      state: directory         
+
+# 8 - copy the shell script from /opt/ to /opt/cloudstack     
+  - name: Copy files for shell script
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/odoo/odoo-cleanup.sh', confdest: '/opt/odoo'}  
+
+# 9 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /opt/odoo/odoo-cleanup.sh && /opt/odoo/odoo-cleanup.sh"
+      state: present
+
+# # 10 - Enable the ssh  acess and restart the sshd service   
+#   - name: Restarting sshd
+#     shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
+
