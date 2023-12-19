@@ -3,8 +3,8 @@ title: Moodle
 sidebar_label: Moodle
 ---
 
-|**`Version Latest` `OS Ubuntu` `Learning`**|  |
-|-------------------------------------------------------|--|
+|**`Version Latest` `OS Ubuntu` `Content Management Systems`**|  |
+|-------------------------------------------------------------|--|
 
 ### Description
 

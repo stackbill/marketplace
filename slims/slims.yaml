@@ -1,0 +1,229 @@
+# Install slims on ubuntu 20 & 22
+
+- name: Slims Setup
+  hosts: localhost
+  tasks:
+
+# 1 - Disable ssh access and restart the ssh service
+  - name: Restarting sshd
+    shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+      cache_valid_time: 3600
+
+# 3 - Check os version
+  - name: Check os version
+    shell: lsb_release -rs
+    register: os_version
+
+# 4 - Install required Packages
+  - name: Install required Packages
+    ansible.builtin.apt:
+      name:  software-properties-common
+      state: present
+
+# 5 - Add the ondrej/php repository
+  - name: Add the ondrej/php repository
+    shell: add-apt-repository ppa:ondrej/php
+
+# 6 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 7 - Install required packages
+  - name: Installing required packages
+    apt:
+      name: "{{ item }}"
+      state: present
+      update_cache: yes
+      cache_valid_time: 3600
+    with_items:
+      - apache2
+      - mysql-server
+      - php7.3
+      - php7.3-cli
+      - php7.3-common
+      - php7.3-mbstring
+      - php7.3-gd
+      - php7.3-intl
+      - php7.3-xml
+      - php7.3-mysql
+      - php7.3-zip
+      - php7.3-dev
+      - php-pear
+      - yaz
+      - libyaz5
+      - libnet-z3950-zoom-perl
+      - libyaz-dev
+
+# 8 - Install Pecl yaz
+  - name: Installing Pecl yaz
+    shell: "pecl install yaz"
+    args:
+      creates: /usr/lib/php/20180731/yaz.so
+
+# 9 - Add  yaz.so extension in php7.3 in php.ini
+  - name: Adding yaz.so extension in php7.3 in php.ini
+    lineinfile:
+      path: /etc/php/7.3/apache2/php.ini
+      line: extension=yaz.so
+      state: present
+      create: yes
+
+# 10 - copy the 001-default config file
+  - name: Copying the 001-default config file
+    copy:
+      src: 001-default.conf
+      dest: /etc/apache2/sites-available/001-default.conf
+
+# 11 - Add the mariadb key
+  - name: Add the mariadb key
+    shell: apt-key adv --fetch-keys 'https://mariadb.org/mariadb_release_signing_key.asc'
+
+
+# 12 - Add the mariadb repository based on the os release
+  - name: Add the mariadb repository based on the os release
+    shell: |
+       add-apt-repository 'deb [arch=amd64,arm64,ppc64el] https://mariadb.mirror.liquidtelecom.com/repo/10.6/ubuntu focal main'
+    when: os_version.stdout == '20.04'
+
+  - name: Add the mariadb repository based on the os release
+    shell: |
+       add-apt-repository 'deb [arch=amd64,arm64,ppc64el] https://mariadb.mirror.liquidtelecom.com/repo/10.6/ubuntu Jammy main'
+    when: os_version.stdout == '22.04'
+
+# 13 - enable the virtula host
+  - name: Enabling the virtual host
+    shell: a2ensite 001-default.conf
+
+# 14 - Install mariadb server
+  - name: Install mariadb server
+    ansible.builtin.apt:
+      name: ['mariadb-server', 'mariadb-client']
+      state: present
+      update_cache: yes
+
+# 15 - Start and enable mariadb service
+  - name: Start and enable mariadb service
+    ansible.builtin.service:
+      name: mariadb
+      state: started
+      enabled: yes
+
+# 16 - Generate the mysql root password
+  - name: Generating mariadb password
+    shell: openssl rand -hex 24
+    register: rootpassword
+
+# 17 - Store the mysql root password
+  - name: Storing mariadb password
+    copy:
+      dest: "/root/.mariadb_root_password"
+      content: |
+        root_mariadb_user = root
+        root_mariadb_pass = "{{ rootpassword.stdout }}"
+
+# 18 - Secure mariadb installation
+  - name: Secure mariadb installation
+    shell: mysql_secure_installation
+    args:
+      stdin: |
+        y
+        {{ rootpassword }}
+        {{ rootpassword }}
+        y
+        y
+        y
+        y
+
+# 19 - Generate the mysql slims password
+  - name: Generating mariadb password
+    shell: openssl rand -hex 24
+    register: slimspassword
+
+# 20 - Store the mysql root password
+  - name: Storing mariadb password
+    copy:
+      dest: "/root/.mariadb_slims_password"
+      content: |
+        root_mariadb_user = slims
+        root_mariadb_pass = "{{ slimspassword.stdout }}"
+
+# 21 - Create the slims database
+  - name: Creating the slims database
+    shell: mysql -u root -p{{ rootpassword.stdout }} -e "CREATE DATABASE slims;"
+
+# 22 - Create the slims User
+  - name: Creating the slims User
+    shell: mysql -u root -p{{ rootpassword.stdout }} -e "CREATE USER 'slims'@'localhost' IDENTIFIED BY '{{ slimspassword.stdout }}';"
+
+# 23 - Grant privileges to the slims user
+  - name: Grant privileges to the slims user
+    shell: mysql -u root -p{{ rootpassword.stdout }} -e "GRANT ALL PRIVILEGES ON slims.* TO 'slims'@'localhost';"
+
+# 24 - Flush privileges
+  - name: Flush privileges
+    shell: mysql -u root -p{{ rootpassword.stdout }} -e "FLUSH PRIVILEGES;"
+
+# 26 - Download the slims tar file
+  - name: Downloading the slims tar file
+    get_url:
+      url: https://github.com/slims/slims9_bulian/releases/download/v9.0.0/slims9_bulian-9.0.0.tar.gz
+      dest: /tmp/slims9_bulian-9.0.0.tar.gz
+
+# 27 - Extract the slims tar file
+  - name: Extracting the slims tar file
+    unarchive:
+      src: /tmp/slims9_bulian-9.0.0.tar.gz
+      dest: /tmp
+      remote_src: yes
+
+# 28 - Remove default index.html file
+  - name: Removing default index.html file
+    file:
+      path: /var/www/html/index.html
+      state: absent
+
+# 30 - copy content form slims9_bulian-9.0.0 to html
+  - name: Copying content form slims9_bulian-9.0.0 to html
+    shell: rsync -avz /tmp/slims9_bulian-9.0.0/* /var/www/html/
+
+
+# 31 - Change the ownership of html
+  - name: Changing the ownership of html
+    shell: chown -R root:root /var/www/html/
+
+# 32 - Change 777 permission to directory
+  - name: Changing 777 permission to directory
+    shell: chmod -R 777 /var/www/html/config /var/www/html/files /var/www/html/images /var/www/html/repository
+
+# 26 - create a cloudstack directory
+  - name: Creating a directory for shell script
+    ansible.builtin.file:
+      path: /opt/slims
+      state: directory         
+
+# 27 - copy the shell script from /opt/ to /opt/cloudstack     
+  - name: Copy files for shell script
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/slims/slims-cleanup.sh', confdest: '/opt/slims'}  
+
+# 28 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /opt/slims/slims-cleanup.sh && /opt/slims/slims-cleanup.sh"
+      state: present
+
+# 29 - Enable the ssh  acess and restart the sshd service   
+  - name: Restarting sshd
+    shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
+

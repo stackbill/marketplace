@@ -223,7 +223,7 @@
   - name: Copy the moodle.conf from /usr/local/src/moodle to  /etc/apache2/sites-available
     copy:
       src: moodle.conf
-      dest: /etc/apache2/conf-enabled/
+      dest: /etc/apache2/sites-available/
       remote_src: yes
 
 
