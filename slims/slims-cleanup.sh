@@ -17,9 +17,10 @@ echo
 echo -e "${RED}The Mariadb root Password is $(cat /root/.mariadb_root_password)${NC}"
 echo
 echo
-echo -e "${RED}The Moodleadmin user Password is $(cat /root/.mariadb_moodleadmin_password)${NC}"
+echo -e "${RED}The slims user Password is $(cat /root/.mariadb_slims_password)${NC}"
 echo
 echo
+
 
 #To replace the Domain Name in the apache configuration 
 a=0
@@ -38,9 +39,7 @@ do
 fi
 done
 
-sed -i "s/learning.testprojects.me/$dom/g"  /etc/apache2/sites-available/moodle.conf
-sed -i "s|example.com/moodle|$dom|g" /var/www/html/config.php
-
+sed -i "s/your.domain.name/$dom/g"  /etc/apache2/sites-available/001-default.conf
 
 
 # restart apache2 service
@@ -59,7 +58,7 @@ apt-get -y autoremove >/dev/null 2>&1
 apt-get -y autoclean >/dev/null 2>&1
 rm -rf /root/.bashrc
 cp /etc/skel/.bashrc /root
-rm -rf /opt/moodle
+rm -rf /opt/slims
 cat /dev/null > /root/.bash_history
 unset HISTFILE
 history -c
