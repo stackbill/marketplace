@@ -1,0 +1,63 @@
+## https://docs.bigbluebutton.org/administration/install/
+## Install bigbluebutton on ubuntu 20.04 LTS
+
+- name: Bigbluebutton Setup
+  hosts: localhost
+  tasks:
+#1 - Disable ssh access and restart the ssh service
+  - name: Restarting sshd
+    shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+      
+# 3 - Check the language
+  - name: Checking Language
+    shell: "locale | grep LANG=en_US.UTF-8"
+    register: lang
+    ignore_errors: yes
+
+# 4 - Install the language pack
+  - name: Installing Language Pack
+    shell: "apt install -y language-pack-en"
+    when: lang.rc != 0
+
+# 5 - Update the language
+  - name: Updating Language
+    shell: "update-locale LANG=en_US.UTF-8"
+    when: lang.rc != 0
+
+# 6 - Remove all the line from /etc/default/locale file expect LANG=en_US.UTF-8
+  - name: Removing Lines
+    shell: echo LANG="en_US.UTF-8" > /etc/default/locale
+    when: lang.rc != 0
+
+# 7 - Set enviromnet language
+  - name: Setting Environment Language
+    shell: systemctl set-environment LANG=en_US.UTF-8
+    when: lang.rc != 0 
+
+# 8 - Set a valid https://raw.githubusercontent.com/bigbluebutton/bbb-install/master/bbb-install.sh
+  - name: Setting Valid Hostname
+    shell: hostnamectl set-hostname bbb.example.com
+
+# 9 - Get bbb-install.sh from github
+  - name: Downloading bbb-install.sh
+    get_url:
+      url: https://raw.githubusercontent.com/bigbluebutton/bbb-install/v2.7.x-release/bbb-install.sh
+      dest: /tmp/bbb-install.sh
+      mode: 0755
+
+# 9 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /tmp/bbb-cleanup.sh && /tmp/bbb-cleanup.sh"
+      state: present
+
+   
+# 11 - Enable the ssh  acess and restart the sshd service   
+  - name: Restarting sshd
+    shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
