@@ -43,18 +43,11 @@
   - name: Setting Valid Hostname
     shell: hostnamectl set-hostname bbb.example.com
 
-# 9 - Get bbb-install.sh from github
-  - name: Downloading bbb-install.sh
-    get_url:
-      url: https://raw.githubusercontent.com/bigbluebutton/bbb-install/v2.7.x-release/bbb-install.sh
-      dest: /tmp/bbb-install.sh
-      mode: 0755
-
 # 9 - Add the shell script to .bashrc
   - name: Adding a line for shell script
     lineinfile:
       path: /root/.bashrc
-      line: "chmod +x /tmp/bbb-cleanup.sh && /tmp/bbb-cleanup.sh"
+      line: "chmod +x /usr/local/src/bigbluebutton/bbb-cleanup.sh && /usr/local/src/bigbluebutton/bbb-cleanup.sh"
       state: present
 
    
