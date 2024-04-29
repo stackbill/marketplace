@@ -1,0 +1,185 @@
+# Install Nextcloud on ubuntu 22.04 based on the official quick install guide
+# https://docs.nextcloud.com/server/latest/admin_manual/installation/example_ubuntu.html
+
+- name: Nextcloud Setup
+  hosts: localhost
+  tasks:
+#1 - Disable ssh access and restart the ssh service
+  - name: Restarting sshd
+    shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+# 2 - Update the system
+  - name: Updating Packages
+    ansible.builtin.apt:
+      update_cache: yes
+
+# 3 - Install the required packages
+  - name: Install required packages
+    ansible.builtin.apt:
+      name: "{{ packages }}"
+      state: present
+    vars:
+      packages:
+       - apache2 
+       - mariadb-server 
+       - libapache2-mod-php 
+       - php-gd 
+       - php-mysql 
+       - php-curl 
+       - php-mbstring 
+       - php-intl 
+       - php-gmp 
+       - php-bcmath 
+       - php-xml 
+       - php-imagick 
+       - php-zip
+       - unzip
+       - redis-server
+       - php-redis
+       - certbot 
+       - python3-certbot-apache
+
+ # 4 - Generate a random password for mysql user
+  - name: Generate a random password
+    shell: >-
+          openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 16 && echo
+    register: user_db_pass
+
+ # 5 - Generate a random password for mysql root
+  - name: Generate a random password
+    shell: >-
+          openssl rand -base64 32 | tr -dc 'a-zA-Z0-9' | head -c 16 && echo
+    register: root_db_pass
+
+ # 6 - copy the mysql root password to a file in /root/.root_db_pass
+  - name: copy the mysql root password to a file in /root/.root_db_pass
+    copy:
+      content: "{{ root_db_pass.stdout }}"
+      dest: /root/.root_db_pass
+      owner: root
+      group: root
+      mode: 0600
+
+ # 7 - copy the mysql user password to a file in /root/.user_db_pass
+  - name: copy the mysql user password to a file in /root/.user_db_pass
+    copy:
+      content: "{{ user_db_pass.stdout }}"
+      dest: /root/.user_db_pass
+      owner: root
+      group: root
+      mode: 0600
+
+# 8 - Add the lhc database and user
+  - name: Add the nextcloud database
+    command: 'mysql -ne "{{ item }}"'
+    with_items:
+        - CREATE USER 'nextcloud'@'localhost' IDENTIFIED BY '{{user_db_pass.stdout}}';
+        - CREATE DATABASE IF NOT EXISTS nextcloud CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+        - GRANT ALL PRIVILEGES ON nextcloud.* TO 'nextcloud'@'localhost';
+        - FLUSH PRIVILEGES;
+
+# 9 - Secure mariadb installation
+  - name: Secure mariadb installation
+    shell: mysql_secure_installation
+    args:
+      stdin: |
+        y
+        {{ root_db_pass.stdout }}
+        {{ root_db_pass.stdout }}
+        y
+        y
+        y
+        y
+
+# 7 - Import the Gpg key for nextcloud
+  - name: Import the Gpg key for nextcloud
+    shell: gpg --keyserver keys.openpgp.org --recv-keys 28806A878AE423A28372792ED75899B9A724937A
+
+# 8 - Download latest version of nextcloud
+  - name: Download latest version of Nextcloud
+    get_url:
+      url: "https://download.nextcloud.com/server/releases/latest.zip"
+      dest: "/usr/local/src/latest.zip"
+
+# 9 - Unzip the latest version of nextcloud
+  - name: Unzip the latest version of Nextcloud
+    unarchive:
+      src: "/usr/local/src/latest.zip"
+      dest: "/usr/local/src/"
+
+# 10 - Remove the default html file
+  - name: Remove the Default files from /var/www/html
+    file:
+      path: /var/www/html/index.html
+      state: absent
+
+# 11 - Move the folder from /usr/local/src to /var/www
+  - name:  Move the folder from /usr/local/src/nextcloud to /var/www/html
+    shell: rsync -avz /usr/local/src/nextcloud/. /var/www/html/.
+
+# 12 - Sed command to uncomment the cluster-enabled on the redis config
+  - name: Sed command to uncomment the cluster-enabled on the redis config
+    shell: sed -i 's/^# cluster-enabled no/cluster-enabled yes/' /etc/redis/redis.conf
+
+# 13 - Replace the supervised no to supervised systemd on redis config
+  - name: Replace the supervised no to supervised systemd on redis config
+    shell: sed -i 's/^supervised no/supervised systemd/' /etc/redis/redis.conf
+
+# 14 - Restart the redis service
+  - name: Restart the redis service
+    service:
+      name: redis
+      state: restarted
+
+# 15 - Copy the nextcloud.conf from /usr/local/src/nextcloud to /etc/apache2/sites-available
+  - name: Copy the nextcloud.conf from /usr/local/src/nextcloud to /etc/apache2/sites-available
+    copy:
+      src: /usr/local/src/nextcloud/nextcloud.conf
+      dest: /etc/apache2/sites-available/nextcloud.conf
+
+# 16 - change owner ship to www-data to /var/www/html/
+  - name: change owner ship to www-data to /var/www/html/
+    shell: chown www-data. /var/www/html/ -R
+
+ # 17 - Unlink the default conf from apache2  
+  - name: Unlink the default conf from apache2
+    shell: unlink /etc/apache2/sites-enabled/000-default.conf
+
+# 18 - Remove the default conf file
+  - name: Remove the Default conf
+    file:
+      path: /etc/apache2/sites-available/000-default.conf
+      state: absent
+
+  
+# 19 - Restart the apache service
+  - name: Restart the apache service
+    service:
+      name: apache2
+      state: restarted
+
+# 20 - create a cloudstack directory
+  - name: Creating a directory for shell script
+    ansible.builtin.file:
+      path: /opt/nextcloud
+      state: directory         
+
+# 21 - copy the shell script from /opt/ to /opt/cloudstack     
+  - name: Copy files for shell script
+    copy:
+      src: "{{ item.confsrc }}"
+      dest: "{{ item.confdest }}"
+      remote_src: yes   
+    with_items: 
+      - { confsrc: '/usr/local/src/nextcloud/nextcloud-cleanup.sh', confdest: '/opt/nextcloud'}  
+
+# 22 - Add the shell script to .bashrc
+  - name: Adding a line for shell script
+    lineinfile:
+      path: /root/.bashrc
+      line: "chmod +x /opt/nextcloud/nextcloud-cleanup.sh && /opt/nextcloud/nextcloud-cleanup.sh"
+      state: present
+
+# 23 - Enable the ssh  acess and restart the sshd service   
+  - name: Restarting sshd
+    shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
