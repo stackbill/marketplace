@@ -48,12 +48,12 @@
 
       - name: Download kafka files
         ansible.builtin.unarchive:
-          src: https://dlcdn.apache.org/kafka/3.5.0/kafka_2.13-3.5.0.tgz
+          src: https://downloads.apache.org/kafka/3.7.0/kafka_2.13-3.7.0.tgz
           dest: /opt/
           remote_src: yes
 
       - name: Rename opensearch
-        shell: mv /opt/kafka_2.13-3.5.0/ /opt/kafka
+        shell: mv /opt/kafka_2.13-3.7.0/ /opt/kafka
 
       - name: Rename opensearch
         shell: mv /opt/kafka/config/server.properties /opt/kafka/config/server.properties-org
