@@ -12,7 +12,7 @@
           update_cache: yes        
 
       - name: Installing CloudPanel
-        shell: curl -sS https://installer.cloudpanel.io/ce/v2/install.sh -o /usr/local/src/install.sh; | \
+        shell: curl -sS https://installer.cloudpanel.io/ce/v2/install.sh -o /usr/local/src/install.sh; \
                sudo bash /usr/local/src/install.sh
         register: cloudout
 
