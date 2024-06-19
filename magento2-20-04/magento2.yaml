@@ -206,19 +206,32 @@
           name: [ 'php8.1-xml' , 'php8.1-curl' , 'php8.1-zip' , 'php8.1-bcmath' , 'php8.1-soap' , 'php8.1-mysql' , 'php8.1-mbstring' , 'php8.1-intl' , 'php8.1-imagick' , 'php8.1-gd' , 'php8.1-bz2']
           state: present
 
-      - name: Installing Composer
-        shell: chmod +x /usr/local/src/magento2-20-04/composer.sh && /usr/local/src/magento2-20-04/composer.sh
+      # - name: Installing Composer
+      #   shell: chmod +x /usr/local/src/magento2-20-04/composer.sh && /usr/local/src/magento2-20-04/composer.sh
 
-      - name: Copy Composer file
-        copy:
-          src: /usr/local/src/magento2-20-04/composer.phar
-          dest: /usr/local/bin/composer
-          remote_src: yes
+      # - name: Copy Composer file
+      #   copy:
+      #     src: /usr/local/src/magento2-20-04/composer.phar
+      #     dest: /usr/local/bin/composer
+      #     remote_src: yes
 
-      - name: Setting permission for composer
-        ansible.builtin.file:
-          path: /usr/local/bin/composer
-          mode: '0755'
+      # - name: Setting permission for composer
+      #   ansible.builtin.file:
+      #     path: /usr/local/bin/composer
+      #     mode: '0755'
+
+      - name: Composer | Install Composer latest-stable
+        get_url:
+         url: https://getcomposer.org/download/latest-stable/composer.phar
+         checksum: 'sha256:https://getcomposer.org/download/latest-stable/composer.phar.sha256sum'
+         dest: /usr/local/bin/composer.phar
+         mode: 0755
+         
+      - name: Composer | Symlink composer.phar
+        file:
+         src: composer.phar
+         dest: /usr/local/bin/composer
+         state: link
 
       - name: Adding key elasticsearch
         apt_key:

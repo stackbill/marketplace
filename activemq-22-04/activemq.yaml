@@ -27,15 +27,24 @@
           create_home: no
           system: yes
 
+      - name: Get the directory listing
+        shell: |
+            curl -s https://dlcdn.apache.org/activemq/ \
+            | grep -oP '(?<=<a href=")[^/]+(?=/")' \
+            | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+            | sort -V \
+            | head -n 1
+        register: latest_version
+
       - name: Download activemq files
         ansible.builtin.unarchive:
-          src: https://dlcdn.apache.org/activemq/5.17.4/apache-activemq-5.17.4-bin.tar.gz
+          src:  https://dlcdn.apache.org/activemq/{{ latest_version.stdout }}/apache-activemq-{{ latest_version.stdout }}-bin.tar.gz
           dest: /opt/
           remote_src: yes
 
       - name: Change ownership of a directory
         ansible.builtin.file:
-          path: /opt/apache-activemq-5.17.4
+          path: /opt/apache-activemq-{{ latest_version.stdout }}
           state: directory
           recurse: yes
           owner: activemq
@@ -58,9 +67,17 @@
       - name: Replacing localhost in the configuration file
         shell: "{{ item }}"
         with_items:
-          - "sed -i 's/127.0.0.1/0.0.0.0/g' /opt/apache-activemq-5.17.4/conf/jetty.xml"
-          - "sed -i 's/admin: admin, admin/admin: {{ activemqadminpassword.stdout }}, admin/g' /opt/apache-activemq-5.17.4/conf/jetty-realm.properties"
-          - "sed -i 's/user: user, user//g' /opt/apache-activemq-5.17.4/conf/jetty-realm.properties"
+          - "sed -i 's/127.0.0.1/0.0.0.0/g' /opt/apache-activemq-{{ latest_version.stdout }}/conf/jetty.xml"
+          - "sed -i 's/admin: admin, admin/admin: {{ activemqadminpassword.stdout }}, admin/g' /opt/apache-activemq-{{ latest_version.stdout }}/conf/jetty-realm.properties"
+          - "sed -i 's/user: user, user//g' /opt/apache-activemq-{{ latest_version.stdout }}/conf/jetty-realm.properties"
+
+      - name: change the version name on the activemq.service
+        replace:
+            path: /usr/local/src/activemq-22-04/etc/systemd/system/activemq.service
+            regexp: '5.17.4'
+            replace: '{{ latest_version.stdout }}'
+          
+    
 
       - name: Copy files for shell script
         copy:
