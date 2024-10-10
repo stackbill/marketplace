@@ -1,0 +1,234 @@
+- name: GenieACS Setup
+  hosts: localhost
+  tasks:
+      - name: Restarting sshd
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+       
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Download nodesource_setup 
+        get_url:
+           url: https://deb.nodesource.com/setup_20.x
+           dest: /usr/local/src/nodesource_setup.sh
+
+      - name: Bash the nodesource_setup
+        command: bash /usr/local/src/nodesource_setup.sh 
+
+      - name: Install nodejs
+        ansible.builtin.apt:
+           name: nodejs
+           state: present
+
+      - name: Add focal-security repository
+        copy:
+         dest: /etc/apt/sources.list.d/focal-security.list
+         content: "deb http://security.ubuntu.com/ubuntu focal-security main"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Install nodejs
+        ansible.builtin.apt:
+           name: libssl1.1
+           state: present
+
+      - name: Add MongoDB GPG key
+        apt_key:
+          url: https://www.mongodb.org/static/pgp/server-5.0.asc
+          state: present
+
+      - name: Add MongoDB repository
+        copy:
+          dest: /etc/apt/sources.list.d/mongodb-org-5.0.list
+          content: "deb [ arch=amd64,arm64 ] https://repo.mongodb.org/apt/ubuntu focal/mongodb-org/5.0 multiverse"
+
+      - name: Update apt cache
+        apt:
+          update_cache: yes
+
+      - name: Install MongoDB
+        apt:
+          name: mongodb-org
+          state: present
+
+      - name: Start MongoDB service
+        systemd:
+          name: mongod.service
+          state: started
+          enabled: yes
+
+      # - name: Check MongoDB status
+      #   command: mongo --eval 'db.runCommand({ connectionStatus: 1 })'
+
+      - name: Install "genieacs" node.js package globally.
+        shell: npm install -g genieacs@1.2.13
+
+      - name: Ensure genieacs user exists
+        shell: useradd --system --no-create-home --user-group genieacs
+
+      - name: Create /opt/genieacs directory
+        file:
+          path: /opt/genieacs
+          state: directory
+          owner: genieacs
+          group: genieacs
+          mode: '0755'
+
+      - name: Create /opt/genieacs/ext directory
+        file:
+          path: /opt/genieacs/ext
+          state: directory
+          owner: genieacs
+          group: genieacs
+          mode: '0755'
+
+      - name: Ensure /opt/genieacs/genieacs.env exists with the correct content
+        copy:
+          dest: /opt/genieacs/genieacs.env
+          content: |
+            GENIEACS_CWMP_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-cwmp-access.log
+            GENIEACS_NBI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-nbi-access.log
+            GENIEACS_FS_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-fs-access.log
+            GENIEACS_UI_ACCESS_LOG_FILE=/var/log/genieacs/genieacs-ui-access.log
+            GENIEACS_DEBUG_FILE=/var/log/genieacs/genieacs-debug.yaml
+            NODE_OPTIONS=--enable-source-maps
+            GENIEACS_EXT_DIR=/opt/genieacs/ext
+          owner: genieacs
+          group: genieacs
+          mode: '0644'
+
+      - name: Generate secure JWT secret
+        shell: node -e "console.log(\"GENIEACS_UI_JWT_SECRET=\" + require('crypto').randomBytes(128).toString('hex'))" >> /opt/genieacs/genieacs.env
+
+      - name: Set ownership of /opt/genieacs/genieacs.env
+        file:
+          path: /opt/genieacs/genieacs.env
+          owner: genieacs
+          group: genieacs
+          mode: '0600'
+
+      - name: Create /var/log/genieacs directory
+        file:
+          path: /var/log/genieacs
+          state: directory
+          owner: genieacs
+          group: genieacs
+          mode: '0755'
+
+      - name: Create genieacs-cwmp service
+        copy:
+          dest: /etc/systemd/system/genieacs-cwmp.service
+          content: |
+            [Unit]
+            Description=GenieACS CWMP
+            After=network.target
+
+            [Service]
+            User=genieacs
+            EnvironmentFile=/opt/genieacs/genieacs.env
+            ExecStart=/usr/bin/genieacs-cwmp
+
+            [Install]
+            WantedBy=default.target
+
+      - name: Create genieacs-nbi service
+        copy:
+          dest: /etc/systemd/system/genieacs-nbi.service
+          content: |
+            [Unit]
+            Description=GenieACS NBI
+            After=network.target
+
+            [Service]
+            User=genieacs
+            EnvironmentFile=/opt/genieacs/genieacs.env
+            ExecStart=/usr/bin/genieacs-nbi
+
+            [Install]
+            WantedBy=default.target
+
+      - name: Create genieacs-fs service
+        copy:
+          dest: /etc/systemd/system/genieacs-fs.service
+          content: |
+            [Unit]
+            Description=GenieACS FS
+            After=network.target
+
+            [Service]
+            User=genieacs
+            EnvironmentFile=/opt/genieacs/genieacs.env
+            ExecStart=/usr/bin/genieacs-fs
+
+            [Install]
+            WantedBy=default.target
+
+      - name: Create genieacs-ui service
+        copy:
+          dest: /etc/systemd/system/genieacs-ui.service
+          content: |
+            [Unit]
+            Description=GenieACS UI
+            After=network.target
+
+            [Service]
+            User=genieacs
+            EnvironmentFile=/opt/genieacs/genieacs.env
+            ExecStart=/usr/bin/genieacs-ui
+
+            [Install]
+            WantedBy=default.target
+
+      - name: Reload systemd to recognize new services
+        command: systemctl daemon-reload
+
+      - name: Enable genieacs services to start on boot
+        service:
+          name: "{{ item }}"
+          state: started
+          enabled: yes
+        loop:
+          - genieacs-cwmp
+          - genieacs-nbi
+          - genieacs-fs
+          - genieacs-ui
+
+      - name: Create logrotate configuration for GenieACS
+        copy:
+          dest: /etc/logrotate.d/genieacs
+          content: |
+            /var/log/genieacs/*.log /var/log/genieacs/*.yaml {
+                daily
+                rotate 30
+                compress
+                delaycompress
+                dateext
+            }
+          owner: root
+          group: root
+          mode: '0644'
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/genie-acs                                                                                                                                              
+          state: directory  
+
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+          remote_src: yes   
+        with_items: 
+          - { confsrc: '/usr/local/src/genie-acs/genie-acs-cleanup.sh', confdest: '/opt/genie-acs'}  
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/genie-acs/genie-acs-cleanup.sh && /opt/genie-acs/genie-acs-cleanup.sh"
+          state: present
+
+      - name: Restarting sshd
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
