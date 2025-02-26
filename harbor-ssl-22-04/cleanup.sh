@@ -6,6 +6,10 @@
 rm -rf /usr/local/src/
 mkdir -p /usr/local/src/
 
+# Remove Harbor Deb file
+rm -rf /opt/harbor-*
+
+
 # Remove cloud-init instance data
 rm -rf /var/lib/cloud/instances/*
 rm -rf /var/lib/cloud/data/*
