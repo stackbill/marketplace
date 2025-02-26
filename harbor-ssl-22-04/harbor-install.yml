@@ -78,14 +78,14 @@
       command: bash /usr/local/src/harbor/condition.sh
       args:
         chdir: /usr/local/src/harbor
-      async: 300
+      async: 1200
       poll: 10
 
     - name: Run Harbor installation script
       command: ./install.sh
       args:
         chdir: /opt/harbor
-      async: 600
+      async: 1800
       poll: 20
 
     - name: Remove Harbor installer archive
@@ -145,12 +145,12 @@
         src: "{{ item.confsrc }}"
         dest: "{{ item.confdest }}"
       with_items: 
-         - { confsrc: '/usr/local/src/harbor/opt/cloudstack/harbor-cleanup.sh', confdest: '/opt/cloudstack/'}     
+         - { confsrc: '/usr/local/src/harbor/opt/cloudstack/cleanup.sh', confdest: '/opt/cloudstack/'}     
 
     - name: Adding a line for shell script
       lineinfile:
         path: /root/.bashrc
-        line: "chmod +x /opt/cloudstack/harbor-cleanup.sh && /opt/cloudstack/harbor-cleanup.sh"
+        line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
         state: present      
           
     - name: Restarting sshd
