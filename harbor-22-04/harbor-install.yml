@@ -1,6 +1,6 @@
 ---
 - name: Install Harbor on Ubuntu 22
-  hosts: all
+  hosts: localhost
   become: yes
   gather_facts: yes
   tasks:
