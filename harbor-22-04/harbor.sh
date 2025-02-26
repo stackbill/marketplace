@@ -2,6 +2,8 @@
 
 mkdir -p {/usr/local/src/harbor/opt/cloudstack/,/usr/local/src/harbor}
 
-cd /usr/local/src/harbor/opt/cloudstack/ && wget https://github.com/kanagarajb0720/marketplace/blob/main/harbor-22-04/cleanup.sh
+wget -O /usr/local/src/harbor/opt/cloudstack/cleanup.sh https://raw.githubusercontent.com/kanagarajb0720/marketplace/main/harbor-22-04/cleanup.sh
 
-cd /usr/local/src/harbor  && wget https://github.com/kanagarajb0720/marketplace/blob/main/harbor-22-04/harbor-install.yml
+chmod +x /usr/local/src/harbor/opt/cloudstack/cleanup.sh
+
+cd /usr/local/src/harbor/ && wget https://raw.githubusercontent.com/kanagarajb0720/marketplace/main/harbor-22-04/harbor-install.yml
