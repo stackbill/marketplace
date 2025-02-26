@@ -140,6 +140,24 @@
     - name: Display Harbor service status
       debug:
         msg: "{{ harbor_status.stdout_lines }}"
-        
+
+    - name: Creating a directory for shell script
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory         
+          
+    - name: Copy files for shell script
+      copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+      with_items: 
+         - { confsrc: '/usr/local/src/harbor/opt/cloudstack/harbor-cleanup.sh', confdest: '/opt/cloudstack/'}     
+
+    - name: Adding a line for shell script
+      lineinfile:
+        path: /root/.bashrc
+        line: "chmod +x /opt/cloudstack/harbor-cleanup.sh && /opt/cloudstack/harbor-cleanup.sh"
+        state: present      
+          
     - name: Restarting sshd
-      shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+      shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
