@@ -78,14 +78,14 @@
       command: bash /usr/local/src/harbor/condition.sh
       args:
         chdir: /usr/local/src/harbor
-      async: 300
+      async: 1200
       poll: 10
 
     - name: Run Harbor installation script
       command: ./install.sh
       args:
         chdir: /opt/harbor
-      async: 600
+      async: 1800
       poll: 20
 
     - name: Remove Harbor installer archive
