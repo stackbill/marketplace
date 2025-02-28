@@ -1,0 +1,30 @@
+- name: Install Harbor on Ubuntu 22
+  hosts: localhost
+  gather_facts: yes
+  tasks:
+    - name: Disable SSH temporarily
+      shell: "sed -i 's|#Match User anoncvs|ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+      ignore_errors: yes
+
+    - name: Verify SSH is disabled
+      command: grep 'ForceCommand echo' /etc/ssh/sshd_config
+      register: ssh_status
+      changed_when: false
+
+    - debug:
+        msg: "SSH is disabled: {{ ssh_status.stdout }}"
+
+    - name: Update APT package index
+      apt:
+        update_cache: yes
+
+      - name: Enable SSH back
+      shell: "sed -i 's|ForceCommand echo Please wait until the installation is completed..../|#Match User anoncvs|g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+    - name: Verify SSH is re-enabled
+      command: grep '#Match User anoncvs' /etc/ssh/sshd_config
+      register: ssh_enable_status
+      changed_when: false
+
+    - debug:
+        msg: "SSH is enabled back: {{ ssh_enable_status.stdout }}"
