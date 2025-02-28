@@ -4,8 +4,12 @@
   become: yes
   gather_facts: yes
   tasks:
-    - name: Restarting sshd
-      shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+    - name: Restrict SSH access temporarily
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#Match User anoncvs'
+        line: 'ForceCommand echo Please wait until the installation is completed....'
+      notify: Restart sshd
 
     - name: Update APT package index
       apt:
@@ -159,5 +163,15 @@
         line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
         state: present      
           
-    - name: Restarting sshd
-      shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
+    - name: Restore SSH access
+      lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^ForceCommand echo Please wait until the installation is completed....'
+        line: '#Match User anoncvs'
+      notify: Restart sshd
+  
+  handlers:
+    - name: Restart sshd
+      systemd:
+        name: sshd
+        state: restarted
