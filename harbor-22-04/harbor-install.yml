@@ -1,11 +1,11 @@
 ---
 - name: Install Harbor on Ubuntu 22
   hosts: localhost
+  become: yes
   gather_facts: yes
   tasks:
-    - name: Restarting sshd  
-      shell: |
-      sed -i 's|#Match User anoncvs|ForceCommand echo "Please wait until the installation is completed...."|g' /etc/ssh/sshd_config && systemctl restart sshd
+    - name: Restarting sshd
+      shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
 
     - name: Update APT package index
       apt:
@@ -159,6 +159,5 @@
         line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
         state: present      
           
-    - name: Reverting SSHD configuration and restarting sshd  
-      shell: |
-      sed -i 's|ForceCommand echo "Please wait until the installation is completed...."|#Match User anoncvs|g' /etc/ssh/sshd_config && systemctl restart sshd
+    - name: Restarting sshd
+      shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
