@@ -18,7 +18,7 @@
       apt:
         update_cache: yes
 
-      - name: Enable SSH back
+    - name: Enable SSH back
       shell: "sed -i 's|ForceCommand echo Please wait until the installation is completed..../|#Match User anoncvs|g' /etc/ssh/sshd_config && systemctl restart sshd"
 
     - name: Verify SSH is re-enabled
