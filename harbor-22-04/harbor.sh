@@ -6,4 +6,4 @@ wget -O /usr/local/src/harbor/opt/cloudstack/cleanup.sh https://raw.githubuserco
 
 chmod +x /usr/local/src/harbor/opt/cloudstack/cleanup.sh
 
-cd /usr/local/src/harbor/ && wget https://raw.githubusercontent.com/stackbill/marketplace/refs/heads/main/harbor-22-04/harbor-install.yml
+cd /usr/local/src/harbor/ && wget https://raw.githubusercontent.com/kanagarajb0720/marketplace/refs/heads/main/harbor-22-04/harbor-install.yml
