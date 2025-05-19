@@ -1,6 +1,5 @@
 - name: Install Harbor on Ubuntu 22
   hosts: localhost
-  gather_facts: yes
   tasks:
     - name: Disable SSH temporarily
       shell: "sed -i 's|#Match User anoncvs|ForceCommand echo Please wait until the installation is completed...|g' /etc/ssh/sshd_config && systemctl restart sshd"
