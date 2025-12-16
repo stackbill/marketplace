@@ -1,0 +1,126 @@
+---
+- name: Install Pritunl VPN Server and MongoDB on Ubuntu 22.04
+  hosts: localhost
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+    - name: Restarting sshd (Lock SSH)
+      shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
+
+    - name: Install base packages
+      apt:
+        name:
+          - gnupg
+          - curl
+        update_cache: yes
+        state: present
+
+    - name: Add Pritunl repo source list
+      copy:
+        dest: /etc/apt/sources.list.d/pritunl.list
+        content: |
+          deb [ signed-by=/usr/share/keyrings/pritunl.gpg ] https://repo.pritunl.com/stable/apt jammy main
+
+    - name: Download Pritunl GPG key
+      get_url:
+        url: "https://raw.githubusercontent.com/pritunl/pgp/master/pritunl_repo_pub.asc"
+        dest: "/tmp/pritunl_repo_pub.asc"
+
+    - name: Convert Pritunl key to keyring
+      command: >
+        gpg -o /usr/share/keyrings/pritunl.gpg --dearmor /tmp/pritunl_repo_pub.asc
+      args:
+        creates: /usr/share/keyrings/pritunl.gpg
+
+    - name: Download MongoDB 8.0 GPG key
+      get_url:
+        url: "https://www.mongodb.org/static/pgp/server-8.0.asc"
+        dest: "/tmp/mongodb.asc"
+
+    - name: Convert MongoDB key to keyring
+      command: >
+        gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg --dearmor /tmp/mongodb.asc
+      args:
+        creates: /usr/share/keyrings/mongodb-server-8.0.gpg
+
+    - name: Add MongoDB repository
+      copy:
+        dest: /etc/apt/sources.list.d/mongodb-org-8.0.list
+        content: |
+          deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu jammy/mongodb-org/8.0 multiverse
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install VPN & Database packages
+      apt:
+        name:
+          - openvpn
+          - mongodb-org
+          - pritunl
+          - wireguard
+          - wireguard-tools
+        state: present
+
+    - name: Enable & start MongoDB
+      systemd:
+        name: mongod.service
+        enabled: yes
+        state: started
+
+    - name: Enable & start Pritunl
+      systemd:
+        name: pritunl
+        enabled: yes
+        state: started
+
+    - name: Check MongoDB status
+      command: systemctl status mongod.service
+      register: mongod_status
+      changed_when: false
+
+    - name: Show MongoDB status
+      debug:
+        msg: "{{ mongod_status.stdout_lines }}"
+
+    - name: Check Pritunl status
+      command: systemctl status pritunl.service
+      register: pritunl_status
+      changed_when: false
+
+    - name: Show Pritunl status
+      debug:
+        msg: "{{ pritunl_status.stdout_lines }}"
+
+    - name: Get Pritunl setup key
+      command: pritunl setup-key
+      register: pritunl_key
+
+    - name: Save Pritunl setup key
+      copy:
+        dest: /root/pritunl-setup-key.txt
+        content: "{{ pritunl_key.stdout }}"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Creating CloudStack directory
+      file:
+        path: /opt/cloudstack
+        state: directory
+
+    - name: Copy cleanup script
+      copy:
+        src: "/usr/local/src/pritunl/cleanup.sh"
+        dest: "/opt/cloudstack/cleanup.sh"
+
+    - name: Add cleanup execution to .bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "chmod +x /usr/local/src/pritunl/cleanup.sh && /usr/local/src/pritunl/cleanup.sh"
+
+    - name: Revert sshd lockdown
+      shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
