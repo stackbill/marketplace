@@ -79,7 +79,7 @@
 
       - name: Creating a directory for shell script
         ansible.builtin.file:
-          path: /opt/cloudstack
+          path: /usr/local/src/mysql-24-04/opt/cloudstack/
           state: directory
 
       - name: Copy files for shell script
@@ -89,14 +89,14 @@
           remote_src: yes
         with_items:
           - {
-              confsrc: '/usr/local/src/mysql-standalone-24-04/opt/cloudstack/mysql-standalone-cleanup.sh',
-              confdest: '/opt/cloudstack/'
+              confsrc: '/usr/local/src/mysql-24-04/opt/cloudstack/mysql-cleanup.sh',
+              confdest: '/usr/local/src/mysql-24-04/opt/cloudstack/'
             }
 
       - name: Adding cleanup shell script in bashrc
         lineinfile:
           path: /root/.bashrc
-          line: "chmod +x /opt/cloudstack/mysql-standalone-cleanup.sh && /opt/cloudstack/mysql-standalone-cleanup.sh"
+          line: "chmod +x /usr/local/src/mysql-24-04/opt/cloudstack/mysql-cleanup.sh && /usr/local/src/mysql-24-04/opt/cloudstack/mysql-cleanup.sh"
           state: present
 
       - name: Restarting ssh
