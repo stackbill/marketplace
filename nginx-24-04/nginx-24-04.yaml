@@ -83,14 +83,14 @@
 
     - name: Copy cleanup shell script
       ansible.builtin.copy:
-        src: /usr/local/src/nginx-24-04/opt/cloudstack/cleanup.sh
-        dest: /opt/cloudstack/cleanup.sh
+        src: /usr/local/src/nginx-24-04/opt/cloudstack/nginx-cleanup.sh
+        dest: /opt/cloudstack/nginx-cleanup.sh
         mode: '0755'
 
     - name: Add cleanup script execution to bashrc
       ansible.builtin.lineinfile:
         path: /root/.bashrc
-        line: "/opt/cloudstack/cleanup.sh"
+        line: "/opt/cloudstack/nginx-cleanup.sh"
         state: present
 
     - name: Restore ssh configuration
