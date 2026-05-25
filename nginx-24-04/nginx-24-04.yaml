@@ -1,0 +1,101 @@
+---
+- name: Nginx Setup Ubuntu 24.04
+  hosts: localhost
+  become: true
+
+  tasks:
+
+    - name: Temporarily restrict SSH access
+      ansible.builtin.shell: |
+        sed -i 's/^#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+      args:
+        executable: /bin/bash
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Installing Nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Remove default nginx files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/nginx/sites-available/default
+        - /etc/nginx/sites-enabled/default
+        - /var/www/html/index.nginx-debian.html
+
+    - name: Copy nginx configuration and website files
+      ansible.builtin.copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+        mode: '0644'
+      loop:
+        - {
+            confsrc: '/usr/local/src/nginx-24-04/etc/nginx/sites-available/Cloudstack',
+            confdest: '/etc/nginx/sites-available/Cloudstack'
+          }
+        - {
+            confsrc: '/usr/local/src/nginx-24-04/var/www/html/index.html',
+            confdest: '/var/www/html/index.html'
+          }
+
+    - name: Create nginx site symlink
+      ansible.builtin.file:
+        src: /etc/nginx/sites-available/Cloudstack
+        dest: /etc/nginx/sites-enabled/Cloudstack
+        state: link
+
+    - name: Validate nginx configuration
+      ansible.builtin.command: nginx -t
+      register: nginx_test
+      changed_when: false
+
+    - name: Display nginx validation result
+      ansible.builtin.debug:
+        var: nginx_test.stderr_lines
+
+    - name: Enable and start nginx
+      ansible.builtin.systemd:
+        name: nginx
+        enabled: yes
+        state: restarted
+
+    - name: Get nginx service status
+      ansible.builtin.shell: systemctl status nginx | grep 'since'
+      register: status
+      changed_when: false
+
+    - name: Display nginx service status
+      ansible.builtin.debug:
+        var: status.stdout
+
+    - name: Create cloudstack directory
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory
+        mode: '0755'
+
+    - name: Copy cleanup shell script
+      ansible.builtin.copy:
+        src: /usr/local/src/nginx-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/cleanup.sh
+        mode: '0755'
+
+    - name: Add cleanup script execution to bashrc
+      ansible.builtin.lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Restore ssh configuration
+      ansible.builtin.shell: |
+        sed -i 's/^ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
+      args:
+        executable: /bin/bash
