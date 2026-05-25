@@ -1,0 +1,103 @@
+---
+- name: MySQL Standalone Setup Ubuntu 24
+  hosts: localhost
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+      - name: Restarting ssh
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart ssh"
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing mysql
+        apt:
+          name: mysql-server
+          state: latest
+
+      - name: Starting mysql service
+        service:
+          name: mysql
+          state: started
+          enabled: yes
+
+      - name: Getting mysql service status
+        shell: systemctl status mysql | grep 'since'
+        register: status
+
+      - debug:
+          var: status.stdout
+
+      - name: Generating mysql root password
+        shell: openssl rand -hex 24
+        register: rootpassword
+
+      - debug:
+          var: rootpassword.stdout
+
+      - name: Store mysql root password
+        copy:
+          dest: "/root/.mysql_root_password"
+          content: |
+            root_mysql_pass = "{{ rootpassword.stdout }}"
+
+      - name: Check current mysql authentication plugin
+        shell: |
+          sudo mysql -Nse "SELECT plugin FROM mysql.user WHERE user='root' AND host='localhost';"
+        register: mysqlplugin
+        ignore_errors: yes
+
+      - debug:
+          var: mysqlplugin.stdout
+
+      - name: Set mysql root password using auth_socket
+        shell: |
+          sudo mysql <<EOF
+          ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '{{ rootpassword.stdout }}';
+          DELETE FROM mysql.user WHERE User='';
+          DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+          DROP DATABASE IF EXISTS test;
+          DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+          FLUSH PRIVILEGES;
+          EOF
+        args:
+          executable: /bin/bash
+
+      - debug:
+          msg: "Mysql root password is stored under /root/.mysql_root_password"
+
+      - name: Verify mysql login
+        shell: |
+          mysql -u root -p'{{ rootpassword.stdout }}' -e "SHOW DATABASES;"
+        register: mysqlverify
+
+      - debug:
+          var: mysqlverify.stdout_lines
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory
+
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+          remote_src: yes
+        with_items:
+          - {
+              confsrc: '/usr/local/src/mysql-standalone-24-04/opt/cloudstack/mysql-standalone-cleanup.sh',
+              confdest: '/opt/cloudstack/'
+            }
+
+      - name: Adding cleanup shell script in bashrc
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/mysql-standalone-cleanup.sh && /opt/cloudstack/mysql-standalone-cleanup.sh"
+          state: present
+
+      - name: Restarting ssh
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart ssh"
