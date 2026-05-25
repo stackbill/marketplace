@@ -1,13 +1,14 @@
 ---
 - name: Install Pritunl VPN Server and MongoDB on Ubuntu 22.04
-  hosts: all
+  hosts: localhost
   become: yes
   gather_facts: yes
+
   tasks:
-    - name: Restarting sshd
+
+    - name: Restarting sshd (Lock SSH)
       shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart sshd"
 
-    - name: Install required packages
     - name: Install base packages
       apt:
         name:
@@ -54,52 +55,43 @@
       apt:
         update_cache: yes
 
-    - name: Install OpenVPN
-      apt:
-        name: openvpn
-        state: present
-
-    - name: Install MongoDB
-      apt:
-        name: mongodb-org
-        state: present
-
-    - name: Install Pritunl and WireGuard packages
+    - name: Install VPN & Database packages
       apt:
         name:
-          - pritunl
           - openvpn
+          - mongodb-org
+          - pritunl
           - wireguard
           - wireguard-tools
         state: present
 
-    - name: Enable & start Pritunl service
-      systemd:
-        name: pritunl
-        enabled: yes
-        state: started
-
-    - name: Enable & start MongoDB service
+    - name: Enable & start MongoDB
       systemd:
         name: mongod.service
         enabled: yes
         state: started
 
-    - name: Check MongoDB service status
+    - name: Enable & start Pritunl
+      systemd:
+        name: pritunl
+        enabled: yes
+        state: started
+
+    - name: Check MongoDB status
       command: systemctl status mongod.service
       register: mongod_status
       changed_when: false
 
-    - name: Display Mongod service status
+    - name: Show MongoDB status
       debug:
         msg: "{{ mongod_status.stdout_lines }}"
-		
-    - name: Check pritunl service status
+
+    - name: Check Pritunl status
       command: systemctl status pritunl.service
       register: pritunl_status
       changed_when: false
 
-    - name: Display pritunl service status
+    - name: Show Pritunl status
       debug:
         msg: "{{ pritunl_status.stdout_lines }}"
 
@@ -107,7 +99,7 @@
       command: pritunl setup-key
       register: pritunl_key
 
-    - name: Save Pritunl setup key to file
+    - name: Save Pritunl setup key
       copy:
         dest: /root/pritunl-setup-key.txt
         content: "{{ pritunl_key.stdout }}"
@@ -115,27 +107,20 @@
         group: root
         mode: '0600'
 
-    - name: Show Pritunl setup key
-      debug:
-        msg: "Pritunl Setup Key stored in /root/pritunl-setup-key.txt"
-		
-    - name: Creating a directory for shell script
-      ansible.builtin.file:
+    - name: Creating CloudStack directory
+      file:
         path: /opt/cloudstack
-        state: directory         
-          
-    - name: Copy files for shell script
-      copy:
-        src: "{{ item.confsrc }}"
-        dest: "{{ item.confdest }}"
-      with_items: 
-         - { confsrc: '/usr/local/src/pritunl/cleanup.sh', confdest: '/opt/cloudstack/'}     
+        state: directory
 
-    - name: Adding a line for shell script
+    - name: Copy cleanup script
+      copy:
+        src: "/usr/local/src/pritunl/cleanup.sh"
+        dest: "/opt/cloudstack/cleanup.sh"
+
+    - name: Add cleanup execution to .bashrc
       lineinfile:
         path: /root/.bashrc
         line: "chmod +x /usr/local/src/pritunl/cleanup.sh && /usr/local/src/pritunl/cleanup.sh"
-        state: present  
 
-    - name: Restarting sshd
+    - name: Revert sshd lockdown
       shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart sshd"
