@@ -1,0 +1,136 @@
+- name: PostgreSQL Setup Ubuntu 24.04
+  hosts: localhost
+  become: yes
+
+  tasks:
+
+    - name: Restarting ssh
+      shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+
+    - name: Updating Packages
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Installing Dependencies
+      ansible.builtin.apt:
+        name:
+          - software-properties-common
+          - apt-transport-https
+          - wget
+          - gnupg
+          - lsb-release
+        state: present
+
+    - name: Create PostgreSQL Keyring Directory
+      ansible.builtin.file:
+        path: /usr/share/postgresql-common/pgdg
+        state: directory
+        mode: '0755'
+
+    - name: Import PostgreSQL GPG Key
+      shell: |
+        wget --quiet -O - https://www.postgresql.org/media/keys/ACCC4CF8.asc | \
+        gpg --dearmor -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+      args:
+        creates: /usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg
+
+    - name: Add PostgreSQL Repository
+      copy:
+        dest: /etc/apt/sources.list.d/pgdg.list
+        content: |
+          deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.gpg] https://apt.postgresql.org/pub/repos/apt noble-pgdg main
+
+    - name: Updating Packages Again
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Installing PostgreSQL
+      ansible.builtin.apt:
+        name:
+          - postgresql
+          - postgresql-client
+        state: present
+
+    - name: Enable and Start PostgreSQL Service
+      ansible.builtin.service:
+        name: postgresql
+        enabled: yes
+        state: started
+
+    - name: Getting PostgreSQL Service Status
+      shell: systemctl status postgresql | grep 'since'
+      register: status
+
+    - debug:
+        var: status.stdout
+
+    - name: Generating PostgreSQL Password
+      shell: openssl rand -hex 24
+      register: postgresqlpassword
+
+    - debug:
+        var: postgresqlpassword.stdout
+
+    - name: Store PostgreSQL Credentials
+      copy:
+        dest: /root/.postgresql_passwords
+        mode: '0600'
+        content: |
+          DJANGO_POSTGRESS_USER=postgres
+          DJANGO_POSTGRESS_USER_PASS={{ postgresqlpassword.stdout }}
+
+    - name: Reset postgres User Password
+      shell: |
+        sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '{{ postgresqlpassword.stdout }}';"
+
+    - name: Get PostgreSQL Installed Version
+      shell: |
+        ls /etc/postgresql/
+      register: pg_version
+
+    - name: Configure PostgreSQL Listen Address
+      lineinfile:
+        path: "/etc/postgresql/{{ pg_version.stdout }}/main/postgresql.conf"
+        regexp: "^#?listen_addresses"
+        line: "listen_addresses = '*'"
+
+    - name: Allow Remote PostgreSQL Connections
+      lineinfile:
+        path: "/etc/postgresql/{{ pg_version.stdout }}/main/pg_hba.conf"
+        line: "host    all             all             0.0.0.0/0               md5"
+        insertafter: EOF
+
+    - name: Restart PostgreSQL Service
+      ansible.builtin.service:
+        name: postgresql
+        state: restarted
+
+    - name: Creating Directory for Shell Script
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory
+        mode: '0755'
+
+    - name: Copy Shell Script
+      copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+        mode: '0755'
+      with_items:
+        - {
+            confsrc: '/usr/local/src/postgresql-24-04/opt/cloudstack/cleanup.sh',
+            confdest: '/opt/cloudstack/'
+          }
+
+    - name: Add Cleanup Script in bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Restoring ssh
+      shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
