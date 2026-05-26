@@ -1,0 +1,141 @@
+- name: MongoDB 8.0 Setup Ubuntu 24.04
+  hosts: localhost
+  become: yes
+
+  tasks:
+
+    - name: Disable SSH login temporarily
+      shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+      ignore_errors: yes
+
+    - debug:
+        msg: "Installing MongoDB 8.0 for Ubuntu 24.04"
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - gnupg
+          - curl
+        state: present
+        update_cache: yes
+
+    - name: Download MongoDB GPG key
+      shell: |
+        curl -fsSL https://pgp.mongodb.com/server-8.0.asc | \
+        gpg -o /usr/share/keyrings/mongodb-server-8.0.gpg \
+        --dearmor
+      args:
+        creates: /usr/share/keyrings/mongodb-server-8.0.gpg
+
+    - name: Add MongoDB repository
+      copy:
+        dest: /etc/apt/sources.list.d/mongodb-org-8.0.list
+        content: |
+          deb [ arch=amd64,arm64 signed-by=/usr/share/keyrings/mongodb-server-8.0.gpg ] https://repo.mongodb.org/apt/ubuntu noble/mongodb-org/8.0 multiverse
+
+    - name: Update apt cache after adding MongoDB repo
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install MongoDB
+      ansible.builtin.apt:
+        name: mongodb-org
+        state: present
+
+    - name: Backup MongoDB configuration file
+      copy:
+        src: /etc/mongod.conf
+        dest: /etc/mongod.conf-{{ ansible_date_time.iso8601 }}
+        remote_src: yes
+
+    - name: Configure MongoDB bind IP
+      replace:
+        path: /etc/mongod.conf
+        regexp: 'bindIp: 127.0.0.1'
+        replace: 'bindIp: 0.0.0.0'
+
+    - name: Enable MongoDB security section
+      replace:
+        path: /etc/mongod.conf
+        regexp: '#security:'
+        replace: 'security:'
+
+    - name: Enable MongoDB authorization
+      lineinfile:
+        path: /etc/mongod.conf
+        insertafter: '^security:'
+        line: '  authorization: enabled'
+        state: present
+
+    - name: Reload systemd daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and restart MongoDB service
+      systemd:
+        name: mongod
+        state: restarted
+        enabled: yes
+
+    - name: Wait for MongoDB port
+      wait_for:
+        host: 0.0.0.0
+        port: 27017
+        delay: 5
+        timeout: 60
+
+    - name: Check MongoDB service status
+      shell: |
+        systemctl status mongod --no-pager
+      register: mongod_status
+      changed_when: false
+
+    - debug:
+        var: mongod_status.stdout_lines
+
+    - name: Verify MongoDB connection
+      shell: |
+        mongosh --host 0.0.0.0 --eval 'db.runCommand({ "connectionStatus": 1 })'
+      register: mongo_output
+      changed_when: false
+
+    - debug:
+        var: mongo_output.stdout_lines
+
+    - name: Check MongoDB listening port
+      shell: |
+        ss -tunlp | grep 27017
+      register: mongo_port
+      changed_when: false
+
+    - debug:
+        var: mongo_port.stdout_lines
+
+    - debug:
+        msg: "MongoDB 8.0 Installation Completed"
+
+    - name: Create CloudStack directory
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory
+        mode: '0755'
+
+    - name: Copy cleanup shell script
+      copy:
+        src: /usr/local/src/mongodb-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/cleanup.sh
+        mode: '0755'
+
+    - name: Add cleanup script to bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Re-enable SSH login
+      shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
+      ignore_errors: yes
