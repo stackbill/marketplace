@@ -11,7 +11,7 @@
     - name: Restarting sshd
       shell: |
         sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
-        systemctl restart sshd
+        systemctl restart ssh
 
     - name: Update apt cache
       apt:
