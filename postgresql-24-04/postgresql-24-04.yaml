@@ -120,14 +120,14 @@
         mode: '0755'
       with_items:
         - {
-            confsrc: '/usr/local/src/postgresql-24-04/opt/cloudstack/postgresql-cleanup.sh',
+            confsrc: '/usr/local/src/postgresql-24-04/opt/cloudstack/cleanup.sh',
             confdest: '/opt/cloudstack/'
           }
 
     - name: Add Cleanup Script in bashrc
       lineinfile:
         path: /root/.bashrc
-        line: "chmod +x /opt/cloudstack/postgresql-cleanup.sh && /opt/cloudstack/postgresql-cleanup.sh"
+        line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
         state: present
 
     - name: Restoring ssh
