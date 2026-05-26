@@ -1,0 +1,294 @@
+- name: PhpMyAdmin Setup Ubuntu 24.04
+  hosts: localhost
+  become: yes
+
+  vars:
+    php_version: "8.3"
+    phpmyadmin_version: "5.2.1"
+
+  tasks:
+
+    - name: Restarting sshd
+      shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    ############################################################
+    # APACHE INSTALLATION
+    ############################################################
+
+    - debug:
+        msg: "Installing Apache"
+
+    - name: Install Apache packages
+      apt:
+        name:
+          - apache2
+          - python3-certbot-apache
+        state: present
+
+    - name: Enable Apache modules
+      shell: |
+        a2enmod rewrite
+        a2enmod headers
+      args:
+        executable: /bin/bash
+
+    - name: Remove default site files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/apache2/sites-available/000-default.conf
+        - /var/www/html/index.html
+
+    - name: Copy Apache configuration files
+      copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+      loop:
+        - {
+            confsrc: "/usr/local/src/phpmyadmin-24-04/etc/apache2/sites-available/000-default.conf",
+            confdest: "/etc/apache2/sites-available/"
+          }
+        - {
+            confsrc: "/usr/local/src/phpmyadmin-24-04/var/www/html/index.html",
+            confdest: "/var/www/html/"
+          }
+
+    - name: Start and enable Apache
+      service:
+        name: apache2
+        state: started
+        enabled: yes
+
+    ############################################################
+    # MYSQL INSTALLATION
+    ############################################################
+
+    - debug:
+        msg: "Installing MySQL"
+
+    - name: Install MySQL server
+      apt:
+        name: mysql-server
+        state: present
+
+    - name: Start and enable MySQL
+      service:
+        name: mysql
+        state: started
+        enabled: yes
+
+    - name: Generate MySQL root password
+      shell: openssl rand -hex 24
+      register: rootpassword
+
+    - name: Store MySQL root password
+      copy:
+        dest: /root/.mysql_root_password
+        content: |
+          root_mysql_pass={{ rootpassword.stdout }}
+        mode: '0600'
+
+    - name: Remove anonymous MySQL users
+      shell: |
+        mysql -e "DELETE FROM mysql.user WHERE User='';"
+      changed_when: false
+
+    - name: Remove remote root login
+      shell: |
+        mysql -e "DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost','127.0.0.1','::1');"
+      changed_when: false
+
+    - name: Remove test database
+      shell: |
+        mysql -e "DROP DATABASE IF EXISTS test;"
+        mysql -e "DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';"
+      changed_when: false
+
+    - name: Flush MySQL privileges
+      shell: |
+        mysql -e "FLUSH PRIVILEGES;"
+      changed_when: false
+
+    - name: Set MySQL root password
+      shell: |
+        mysql -e "ALTER USER 'root'@'localhost' IDENTIFIED WITH caching_sha2_password BY '{{ rootpassword.stdout }}';"
+
+    - debug:
+        msg: "MySQL root password stored in /root/.mysql_root_password"
+
+    ############################################################
+    # PHP INSTALLATION
+    ############################################################
+
+    - debug:
+        msg: "Installing PHP {{ php_version }}"
+
+    - name: Install software-properties-common
+      apt:
+        name: software-properties-common
+        state: present
+
+    - name: Add Ondrej PHP repository
+      apt_repository:
+        repo: ppa:ondrej/php
+        state: present
+        update_cache: yes
+
+    - name: Install PHP and required extensions
+      apt:
+        name:
+          - "php{{ php_version }}"
+          - "php{{ php_version }}-mysql"
+          - "php{{ php_version }}-mbstring"
+          - "php{{ php_version }}-zip"
+          - "php{{ php_version }}-gd"
+          - "php{{ php_version }}-curl"
+          - "php{{ php_version }}-xml"
+          - "php{{ php_version }}-cli"
+          - "php{{ php_version }}-common"
+          - libapache2-mod-php
+        state: present
+
+    - name: Check PHP version
+      shell: php -v
+      register: phpversion
+
+    - debug:
+        var: phpversion.stdout_lines
+
+    ############################################################
+    # PHPMYADMIN INSTALLATION
+    ############################################################
+
+    - debug:
+        msg: "Installing phpMyAdmin"
+
+    - name: Install phpMyAdmin package
+      environment:
+        DEBIAN_FRONTEND: noninteractive
+      apt:
+        name: phpmyadmin
+        state: present
+
+    - name: Enable mbstring extension
+      shell: phpenmod mbstring
+
+    - name: Download phpMyAdmin latest files
+      unarchive:
+        src: "https://files.phpmyadmin.net/phpMyAdmin/{{ phpmyadmin_version }}/phpMyAdmin-{{ phpmyadmin_version }}-all-languages.tar.gz"
+        dest: /usr/local/src/
+        remote_src: yes
+
+    - name: Backup existing phpMyAdmin
+      shell: |
+        if [ -d /usr/share/phpmyadmin ]; then
+          mv /usr/share/phpmyadmin /usr/share/phpmyadmin.default
+        fi
+
+    - name: Move latest phpMyAdmin files
+      shell: |
+        mv /usr/local/src/phpMyAdmin-{{ phpmyadmin_version }}-all-languages /usr/share/phpmyadmin
+
+    - name: Create phpMyAdmin tmp directory
+      file:
+        path: /usr/share/phpmyadmin/tmp
+        state: directory
+        mode: '0777'
+
+    - name: Copy phpMyAdmin configuration files
+      copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+      loop:
+        - {
+            confsrc: "/usr/local/src/phpmyadmin-24-04/etc/apache2/conf-enabled/phpmyadmin.conf",
+            confdest: "/etc/apache2/conf-enabled/"
+          }
+        - {
+            confsrc: "/usr/local/src/phpmyadmin-24-04/usr/share/phpmyadmin/.htaccess",
+            confdest: "/usr/share/phpmyadmin/"
+          }
+
+    - name: Generate blowfish secret
+      shell: openssl rand -base64 32
+      register: blowfish
+
+    - name: Configure phpMyAdmin blowfish secret
+      shell: |
+        cp /usr/share/phpmyadmin/config.sample.inc.php /usr/share/phpmyadmin/config.inc.php
+        echo "\$cfg['blowfish_secret'] = '{{ blowfish.stdout }}';" >> /usr/share/phpmyadmin/config.inc.php
+
+    - name: Set phpMyAdmin ownership
+      file:
+        path: /usr/share/phpmyadmin
+        state: directory
+        recurse: yes
+        owner: www-data
+        group: www-data
+
+    ############################################################
+    # BASIC AUTH
+    ############################################################
+
+    - name: Generate phpMyAdmin admin password
+      shell: openssl rand -hex 24
+      register: phpmyadminpassword
+
+    - name: Store phpMyAdmin password
+      copy:
+        dest: /root/.phpmyadmin_password
+        content: |
+          phpmyadmin_user=admin
+          phpmyadmin_pass={{ phpmyadminpassword.stdout }}
+        mode: '0600'
+
+    - name: Configure htpasswd
+      shell: |
+        htpasswd -cb /etc/phpmyadmin/.htpasswd admin "{{ phpmyadminpassword.stdout }}"
+
+    ############################################################
+    # SERVICES
+    ############################################################
+
+    - name: Restart Apache
+      service:
+        name: apache2
+        state: restarted
+
+    ############################################################
+    # CLEANUP SCRIPT
+    ############################################################
+
+    - name: Create cloudstack directory
+      file:
+        path: /opt/cloudstack
+        state: directory
+
+    - name: Copy cleanup script
+      copy:
+        src: "/usr/local/src/phpmyadmin-24-04/opt/cloudstack/cleanup.sh"
+        dest: "/opt/cloudstack/cleanup.sh"
+        mode: '0755'
+
+    - name: Add cleanup script to bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/cleanup.sh"
+        state: present
+
+    ############################################################
+    # SSH RESTORE
+    ############################################################
+
+    - name: Restore sshd config
+      shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
