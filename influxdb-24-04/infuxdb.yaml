@@ -9,6 +9,8 @@
       ansible.builtin.shell: |
         sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
         systemctl restart ssh
+      args:
+        executable: /bin/bash
 
     - name: Update apt package cache
       ansible.builtin.apt:
@@ -57,6 +59,8 @@
     - name: Clean apt cache
       ansible.builtin.shell: apt clean
       changed_when: false
+      args:
+        executable: /bin/bash
 
     - name: Update apt cache after adding repository
       ansible.builtin.apt:
@@ -78,6 +82,8 @@
         systemctl status influxdb | grep "since"
       register: influxdb_status
       changed_when: false
+      args:
+        executable: /bin/bash
 
     - name: Display InfluxDB service status
       ansible.builtin.debug:
@@ -95,13 +101,16 @@
         dest: /opt/cloudstack/cleanup.sh
         mode: '0755'
 
-    - name: Add cleanup script execution to bashrc
-      ansible.builtin.lineinfile:
-        path: /root/.bashrc
-        line: "/opt/cloudstack/cleanup.sh"
-        state: present
-
     - name: Restore ssh configuration
       ansible.builtin.shell: |
         sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
         systemctl restart ssh
+      args:
+        executable: /bin/bash
+
+    - name: Execute cleanup script
+      ansible.builtin.shell: |
+        chmod +x /opt/cloudstack/cleanup.sh
+        /opt/cloudstack/cleanup.sh
+      args:
+        executable: /bin/bash
