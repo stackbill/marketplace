@@ -1,0 +1,107 @@
+---
+- name: InfluxDB Setup for Ubuntu 24.04
+  hosts: localhost
+  become: true
+
+  tasks:
+
+    - name: Restarting ssh
+      ansible.builtin.shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+
+    - name: Update apt package cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - curl
+          - gnupg
+          - ca-certificates
+          - apt-transport-https
+        state: present
+
+    - name: Remove old InfluxDB repository file
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/influxdata.list
+        state: absent
+
+    - name: Remove old InfluxDB keyring
+      ansible.builtin.file:
+        path: /usr/share/keyrings/influxdata-archive-keyring.gpg
+        state: absent
+
+    - name: Import InfluxData repository key
+      ansible.builtin.shell: |
+        curl -fsSL https://repos.influxdata.com/influxdata-archive.key | \
+        gpg --dearmor | \
+        tee /usr/share/keyrings/influxdata-archive-keyring.gpg >/dev/null
+      args:
+        executable: /bin/bash
+
+    - name: Set permissions for InfluxDB keyring
+      ansible.builtin.file:
+        path: /usr/share/keyrings/influxdata-archive-keyring.gpg
+        mode: '0644'
+
+    - name: Add InfluxDB repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/influxdata.list
+        content: |
+          deb [signed-by=/usr/share/keyrings/influxdata-archive-keyring.gpg] https://repos.influxdata.com/ubuntu jammy stable
+        mode: '0644'
+
+    - name: Clean apt cache
+      ansible.builtin.shell: apt clean
+      changed_when: false
+
+    - name: Update apt cache after adding repository
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install InfluxDB 2
+      ansible.builtin.apt:
+        name: influxdb2
+        state: present
+
+    - name: Enable and start InfluxDB service
+      ansible.builtin.systemd:
+        name: influxdb
+        enabled: true
+        state: started
+
+    - name: Verify InfluxDB service status
+      ansible.builtin.shell: |
+        systemctl status influxdb | grep "since"
+      register: influxdb_status
+      changed_when: false
+
+    - name: Display InfluxDB service status
+      ansible.builtin.debug:
+        var: influxdb_status.stdout
+
+    - name: Create cloudstack directory
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory
+        mode: '0755'
+
+    - name: Copy cleanup shell script
+      ansible.builtin.copy:
+        src: /usr/local/src/influxdb-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/cleanup.sh
+        mode: '0755'
+
+    - name: Add cleanup script execution to bashrc
+      ansible.builtin.lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Restore ssh configuration
+      ansible.builtin.shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
