@@ -1,206 +1,319 @@
 ---
-- name: OpenSearch Setup Ubuntu 24
+- name: Opensearch Setup
   hosts: localhost
-  become: true
-
-  vars:
-    opensearch_version: "2.14.0"
-    opensearch_url: "https://artifacts.opensearch.org/releases/bundle/opensearch/{{ opensearch_version }}/opensearch-{{ opensearch_version }}-linux-x64.tar.gz"
-    dashboards_url: "https://artifacts.opensearch.org/releases/bundle/opensearch-dashboards/{{ opensearch_version }}/opensearch-dashboards-{{ opensearch_version }}-linux-x64.tar.gz"
+  become: yes
 
   tasks:
 
-    - name: Restarting SSH service
-      shell: |
-        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
-        systemctl restart ssh
+      - name: Restarting ssh
+        shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart ssh"
 
-    - name: Update apt packages
-      apt:
-        update_cache: yes
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
 
-    - name: Install required packages
-      apt:
-        name:
-          - wget
-          - curl
-          - tar
-          - unzip
-          - vim
-          - net-tools
-          - apache2-utils
-          - openssl
-          - ca-certificates
-        state: present
+      - name: Commenting the swap file
+        shell: cat /etc/fstab | grep -i swap | awk {'print $1'}
+        register: swap_out
 
-    - name: Disable swap immediately
-      command: swapoff -a
+      - debug:
+          var: swap_out.stdout
 
-    - name: Disable swap permanently
-      replace:
-        path: /etc/fstab
-        regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
-        replace: '# \1'
+      - name: Modifying the configuration
+        replace:
+          path: /etc/fstab
+          regexp: '{{ swap_out.stdout }}'
+          replace: '#{{ swap_out.stdout }}'
 
-    - name: Set vm.max_map_count
-      lineinfile:
-        path: /etc/sysctl.conf
-        line: "vm.max_map_count=262144"
+      - name: Turning off swap
+        shell: swapoff -a
 
-    - name: Apply sysctl settings
-      command: sysctl -p
+      - name: Increase the max memory maps
+        ansible.builtin.lineinfile:
+          path: /etc/sysctl.conf
+          line: vm.max_map_count=262144
 
-    - name: Create OpenSearch group
-      group:
-        name: opensearch
-        state: present
-        system: yes
+      - name: Apply the changes
+        shell: sysctl -p
 
-    - name: Create OpenSearch user
-      user:
-        name: opensearch
-        group: opensearch
-        shell: /bin/bash
-        create_home: yes
-        system: yes
+      - name: Adding group for opensearch
+        ansible.builtin.group:
+          name: opensearch
+          state: present
+          system: yes
 
-    - name: Download OpenSearch
-      unarchive:
-        src: "{{ opensearch_url }}"
-        dest: /opt/
-        remote_src: yes
+      - name: Creating a user for opensearch
+        ansible.builtin.user:
+          name: opensearch
+          shell: /bin/bash
+          create_home: yes
+          home: "/home/opensearch"
+          group: opensearch
+          system: yes
 
-    - name: Rename OpenSearch directory
-      command: mv /opt/opensearch-{{ opensearch_version }} /opt/opensearch
-      args:
-        creates: /opt/opensearch
+      - name: Download opensearch files
+        ansible.builtin.unarchive:
+          src: https://artifacts.opensearch.org/releases/bundle/opensearch/2.7.0/opensearch-2.7.0-linux-x64.tar.gz
+          dest: /opt/
+          remote_src: yes
 
-    - name: Configure OpenSearch
-      lineinfile:
-        path: /opt/opensearch/config/opensearch.yml
-        line: "{{ item }}"
-      loop:
-        - "network.host: 0.0.0.0"
-        - "http.port: 9200"
-        - "discovery.type: single-node"
-        - "plugins.security.disabled: false"
+      - name: Rename opensearch
+        shell: mv /opt/opensearch-2.7.0 /opt/opensearch
 
-    - name: Update JVM heap size
-      replace:
-        path: /opt/opensearch/config/jvm.options
-        regexp: "{{ item.old }}"
-        replace: "{{ item.new }}"
-      loop:
-        - { old: '-Xms1g', new: '-Xms2g' }
-        - { old: '-Xmx1g', new: '-Xmx2g' }
+      - name: Tweaking the configuration
+        lineinfile:
+          path: /opt/opensearch/config/opensearch.yml
+          line: "{{ item }}"
+        with_items:
+          - 'network.host: {{ ansible_default_ipv4.address }}'
+          - 'discovery.type: single-node'
+          - 'plugins.security.disabled: false'
 
-    - name: Set ownership for OpenSearch
-      file:
-        path: /opt/opensearch
-        owner: opensearch
-        group: opensearch
-        recurse: yes
+      - name: Replacing the configuration
+        replace:
+          path: /opt/opensearch/config/jvm.options
+          regexp: "{{ item.confsrc }}"
+          replace: "{{ item.confdest }}"
+        with_items:
+          - { confsrc: '-Xms1g', confdest: '-Xms2g' }
+          - { confsrc: '-Xmx1g', confdest: '-Xmx2g' }
 
-    - name: Create OpenSearch systemd service
-      copy:
-        dest: /etc/systemd/system/opensearch.service
-        content: |
-          [Unit]
-          Description=OpenSearch
-          Documentation=https://opensearch.org/
-          After=network.target
+      - name: Remove existing java symlink
+        file:
+          path: /usr/bin/java
+          state: absent
+        ignore_errors: yes
 
-          [Service]
-          Type=simple
-          User=opensearch
-          Group=opensearch
-          ExecStart=/opt/opensearch/bin/opensearch
-          Restart=on-failure
-          LimitNOFILE=65536
-          LimitNPROC=4096
-          TimeoutStopSec=20
+      - name: Creating a symlink for java
+        ansible.builtin.file:
+          src: "/opt/opensearch/jdk/bin/java"
+          dest: "/usr/bin/java"
+          state: link
 
-          [Install]
-          WantedBy=multi-user.target
+      - name: Creating a directory for Opensearch Certs
+        ansible.builtin.file:
+          path: /opt/opensearch/config/certs
+          state: directory
 
-    - name: Reload systemd
-      systemd:
-        daemon_reload: yes
+      - name: Generating Root CA certificates
+        shell: "{{ item }}"
+        with_items:
+         - openssl genrsa -out /opt/opensearch/config/certs/root-ca-key.pem 2048
+         - openssl req -new -x509 -sha256 -key /opt/opensearch/config/certs/root-ca-key.pem -subj "/C=CA/ST=ONTARIO/L=TORONTO/O=ORG/OU=UNIT/CN=ROOT" -out /opt/opensearch/config/certs/root-ca.pem -days 730
 
-    - name: Enable and start OpenSearch
-      systemd:
-        name: opensearch
-        enabled: yes
-        state: started
+      - name: Generating Admin Certificates
+        shell: "{{ item }}"
+        with_items:
+         - openssl genrsa -out /opt/opensearch/config/certs/admin-key-temp.pem 2048
+         - openssl pkcs8 -inform PEM -outform PEM -in /opt/opensearch/config/certs/admin-key-temp.pem -topk8 -nocrypt -v1 PBE-SHA1-3DES -traditional -out /opt/opensearch/config/certs/admin-key.pem
+         - openssl req -new -key /opt/opensearch/config/certs/admin-key.pem -subj "/C=CA/ST=ONTARIO/L=TORONTO/O=ORG/OU=UNIT/CN=A" -out /opt/opensearch/config/certs/admin.csr
+         - openssl x509 -req -in /opt/opensearch/config/certs/admin.csr -CA /opt/opensearch/config/certs/root-ca.pem -CAkey /opt/opensearch/config/certs/root-ca-key.pem -CAcreateserial -sha256 -out /opt/opensearch/config/certs/admin.pem -days 730
 
-    - name: Download OpenSearch Dashboards
-      unarchive:
-        src: "{{ dashboards_url }}"
-        dest: /opt/
-        remote_src: yes
+      - name: Generating Node Certificates
+        shell: "{{ item }}"
+        with_items:
+          - openssl genrsa -out /opt/opensearch/config/certs/node1-key-temp.pem 2048
+          - openssl pkcs8 -inform PEM -outform PEM -in /opt/opensearch/config/certs/node1-key-temp.pem -topk8 -nocrypt -v1 PBE-SHA1-3DES -traditional -out /opt/opensearch/config/certs/node1-key.pem
+          - openssl req -new -key /opt/opensearch/config/certs/node1-key.pem -subj "/C=CA/ST=ONTARIO/L=TORONTO/O=ORG/OU=UNIT/CN=node1.hwdomain.lan" -out /opt/opensearch/config/certs/node1.csr
+          - echo 'subjectAltName=DNS:node1.hwdomain.lan' > /opt/opensearch/config/certs/node1.ext
+          - openssl x509 -req -in /opt/opensearch/config/certs/node1.csr -CA /opt/opensearch/config/certs/root-ca.pem -CAkey /opt/opensearch/config/certs/root-ca-key.pem -CAcreateserial -sha256 -out /opt/opensearch/config/certs/node1.pem -days 730 -extfile /opt/opensearch/config/certs/node1.ext
 
-    - name: Rename Dashboards directory
-      command: mv /opt/opensearch-dashboards-{{ opensearch_version }} /opt/opensearch-dashboards
-      args:
-        creates: /opt/opensearch-dashboards
+      - name: Setting up Certificates
+        shell: "{{ item }}"
+        with_items:
+            - rm -rf /opt/opensearch/config/certs/*temp.pem
+            - rm -rf /opt/opensearch/config/certs/*csr
+            - rm -rf /opt/opensearch/config/certs/*ext
 
-    - name: Configure OpenSearch Dashboards
-      lineinfile:
-        path: /opt/opensearch-dashboards/config/opensearch_dashboards.yml
-        line: "{{ item }}"
-      loop:
-        - 'server.host: "0.0.0.0"'
-        - 'server.port: 5601'
-        - 'opensearch.hosts: ["https://0.0.0.0:9200"]'
-        - 'opensearch.username: "admin"'
-        - 'opensearch.password: "admin"'
-        - 'opensearch.ssl.verificationMode: none'
+      - name: Convert the root CA certificate to .crt format
+        shell: "{{ item }}"
+        with_items:
+            - openssl x509 -outform der -in /opt/opensearch/config/certs/root-ca.pem -out /opt/opensearch/config/certs/root-ca.crt
+            - cp /opt/opensearch/config/certs/root-ca.crt /usr/local/share/ca-certificates/
+            - cd /opt/opensearch/config/certs/ && update-ca-certificates && cd
+            - chmod 0700 /opt/opensearch/config/certs
+            - chmod 0600 /opt/opensearch/config/certs/*.pem
+            - chmod 0600 /opt/opensearch/config/certs/*.crt
 
-    - name: Set ownership for dashboards
-      file:
-        path: /opt/opensearch-dashboards
-        owner: opensearch
-        group: opensearch
-        recurse: yes
+      - name: Copy files for opensearch service
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items:
+          - { confsrc: '/usr/local/src/opensearch-24-04/etc/systemd/system/opensearch.service', confdest: '/etc/systemd/system/' }
 
-    - name: Create OpenSearch Dashboards service
-      copy:
-        dest: /etc/systemd/system/opensearch-dashboards.service
-        content: |
-          [Unit]
-          Description=OpenSearch Dashboards
-          Documentation=https://opensearch.org/
-          After=network.target
+      - name: Executing the script
+        shell: chmod +x /usr/local/src/add.sh && /usr/local/src/add.sh
 
-          [Service]
-          Type=simple
-          User=opensearch
-          Group=opensearch
-          ExecStart=/opt/opensearch-dashboards/bin/opensearch-dashboards
-          Restart=on-failure
+      - name: Installing apache utils for hashing
+        ansible.builtin.apt:
+          name: apache2-utils
+          state: latest
 
-          [Install]
-          WantedBy=multi-user.target
+      - name: Generating opensearch password
+        shell: openssl rand -hex 24
+        register: opensearchadminpassword
 
-    - name: Reload systemd again
-      systemd:
-        daemon_reload: yes
+      - debug:
+         var: opensearchadminpassword.stdout
 
-    - name: Enable and start OpenSearch Dashboards
-      systemd:
-        name: opensearch-dashboards
-        enabled: yes
-        state: started
+      - name: Storing opensearch admin password
+        copy:
+          dest: "/root/.opensearch_admin_password"
+          content: |
+            opensearch_admin_user = admin
+            opensearch_admin_password = "{{ opensearchadminpassword.stdout }}"
 
-    - name: Open firewall ports
-      ufw:
-        rule: allow
-        port: "{{ item }}"
-      loop:
-        - "9200"
-        - "5601"
+      - name: Hasing the generated Password
+        shell: htpasswd -bnBC 10 "" {{ opensearchadminpassword.stdout }} | cut -d ":" -f 2
+        register: hashingadminpassword
 
-    - name: Restart SSH service back
-      shell: |
-        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
-        systemctl restart ssh
+      - debug:
+         var: hashingadminpassword.stdout
+
+      - name: Remove the line hashing password
+        lineinfile:
+          path: /opt/opensearch/config/opensearch-security/internal_users.yml
+          regexp: "hash:"
+          state: absent
+          backup: yes
+
+      - name: Replacing hashing password
+        lineinfile:
+          path: /opt/opensearch/config/opensearch-security/internal_users.yml
+          insertafter: "admin:"
+          line: '  hash: "{{ hashingadminpassword.stdout }}"'
+          firstmatch: yes
+          state: present
+
+      - name: Generating Kibanaserver opensearch password
+        shell: openssl rand -hex 24
+        register: opensearchkibanaserverpassword
+
+      - debug:
+         var: opensearchkibanaserverpassword.stdout
+
+      - name: Storing opensearch admin password
+        copy:
+          dest: "/root/.opensearch_kibanaserver_admin_password"
+          content: |
+            opensearch_Kibanaserver_admin_user = kibanaserver
+            opensearch_Kibanaserver_admin_password = "{{ opensearchkibanaserverpassword.stdout }}"
+
+      - name: Hasing the generated Password
+        shell: htpasswd -bnBC 10 "" {{ opensearchkibanaserverpassword.stdout }} | cut -d ":" -f 2
+        register: hashingkibanaserverpassword
+
+      - debug:
+         var: hashingkibanaserverpassword.stdout
+
+      - name: Replacing hashing password
+        lineinfile:
+          path: /opt/opensearch/config/opensearch-security/internal_users.yml
+          insertafter: "kibanaserver:"
+          line: '  hash: "{{ hashingkibanaserverpassword.stdout }}"'
+          firstmatch: yes
+          state: present
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /opt/opensearch
+          state: directory
+          recurse: yes
+          owner: opensearch
+          group: opensearch
+
+      - name: Reload Daemon
+        ansible.builtin.systemd:
+          daemon_reload: true
+
+      - name: Enable opensearch
+        ansible.builtin.systemd:
+          name: opensearch.service
+          state: started
+          enabled: true
+
+      - name: Download opensearch dashboard files
+        ansible.builtin.unarchive:
+          src: https://artifacts.opensearch.org/releases/bundle/opensearch-dashboards/2.7.0/opensearch-dashboards-2.7.0-linux-x64.tar.gz
+          dest: /opt/
+          remote_src: yes
+
+      - name: Rename opensearch dashboard
+        shell: mv /opt/opensearch-dashboards-2.7.0/ /opt/opensearch-dashboards
+
+      - name: Change ownership of a directory
+        ansible.builtin.file:
+          path: /opt/opensearch-dashboards
+          state: directory
+          recurse: yes
+          owner: opensearch
+          group: opensearch
+
+      - name: Replacing opensearch dashboard port
+        lineinfile:
+          path: /opt/opensearch-dashboards/config/opensearch_dashboards.yml
+          insertafter: "{{ item.confsrc }}"
+          line: "{{ item.confdest }}"
+          firstmatch: yes
+          state: present
+        with_items:
+          - { confsrc: '# server.port: 5601', confdest: 'server.port: 5601' }
+          - { confsrc: '# server.host: "localhost"', confdest: 'server.host: "{{ ansible_default_ipv4.address }}"' }
+
+      - name: Replacing the configuration
+        replace:
+          path: /opt/opensearch-dashboards/config/opensearch_dashboards.yml
+          regexp: "{{ item.confsrc }}"
+          replace: "{{ item.confdest }}"
+        with_items:
+          - { confsrc: 'opensearch.username:', confdest: '#opensearch.username:' }
+          - { confsrc: 'opensearch.password:', confdest: '#opensearch.password:' }
+          - { confsrc: 'opensearch.hosts:', confdest: '#opensearch.hosts:' }
+
+      - name: Add opensearch dashboard logins
+        lineinfile:
+          path: /opt/opensearch-dashboards/config/opensearch_dashboards.yml
+          line: "{{ item }}"
+        with_items:
+           - 'opensearch.hosts: [https://{{ ansible_default_ipv4.address }}:9200]'
+           - 'opensearch.username: kibanaserver'
+           - 'opensearch.password: {{ opensearchkibanaserverpassword.stdout }}'
+
+      - name: Copy files for opensearch dashboard service
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items:
+          - { confsrc: '/usr/local/src/opensearch-24-04/etc/systemd/system/opensearch-dashboards.service', confdest: '/etc/systemd/system/' }
+
+      - name: Reload Daemon
+        ansible.builtin.systemd:
+          daemon_reload: true
+
+      - name: Enable opensearch-dashboards
+        ansible.builtin.systemd:
+          name: opensearch-dashboards.service
+          state: started
+          enabled: true
+
+      - name: Creating a directory for shell script
+        ansible.builtin.file:
+          path: /opt/cloudstack
+          state: directory
+
+      - name: Copy files for shell script
+        copy:
+          src: "{{ item.confsrc }}"
+          dest: "{{ item.confdest }}"
+        with_items:
+          - { confsrc: '/usr/local/src/opensearch-24-04/opt/cloudstack/opensearch-cleanup.sh', confdest: '/opt/cloudstack/' }
+
+      - name: Adding a line for shell script
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /opt/cloudstack/opensearch-cleanup.sh && /opt/cloudstack/opensearch-cleanup.sh"
+          state: present
+
+      - name: Restarting ssh
+        shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart ssh"
