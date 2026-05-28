@@ -127,14 +127,14 @@
 
     - name: Copy rethinkdb cleanup script
       copy:
-        src: /usr/local/src/rethinkdb-24-04/opt/cloudstack/rethinkdb-cleanup.sh
-        dest: /opt/cloudstack/rethinkdb-cleanup.sh
+        src: /usr/local/src/rethinkdb-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/cleanup.sh
         mode: '0755'
 
     - name: Add cleanup script to bashrc
       lineinfile:
         path: /root/.bashrc
-        line: "/opt/cloudstack/rethinkdb-cleanup.sh"
+        line: "/opt/cloudstack/cleanup.sh"
         state: present
 
     - name: Restore ssh configuration
