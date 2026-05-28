@@ -1,0 +1,143 @@
+---
+- name: Install RethinkDB on Ubuntu 24.04
+  hosts: localhost
+  become: true
+
+  tasks:
+
+    - name: Restart ssh temporarily
+      shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gpg
+          - wget
+          - lsb-release
+        state: present
+
+    - name: Download RethinkDB public key
+      shell: |
+        curl -fsSLo /tmp/rethinkdb-pubkey.asc https://download.rethinkdb.com/repository/raw/pubkey.gpg
+
+    - name: Convert GPG key
+      shell: |
+        gpg --dearmor --yes -o /usr/share/keyrings/rethinkdb-archive-keyring.gpg /tmp/rethinkdb-pubkey.asc
+
+    - name: Add RethinkDB repository
+      copy:
+        dest: /etc/apt/sources.list.d/rethinkdb.sources
+        content: |
+          Types: deb
+          URIs: https://download.rethinkdb.com/repository/ubuntu-noble
+          Suites: noble
+          Components: main
+          Architectures: amd64
+          Signed-By: /usr/share/keyrings/rethinkdb-archive-keyring.gpg
+
+    - name: Update apt cache after adding rethinkdb repo
+      apt:
+        update_cache: yes
+
+    - name: Install RethinkDB
+      apt:
+        name: rethinkdb
+        state: present
+
+    - name: Create rethinkdb runtime directory
+      file:
+        path: /var/run/rethinkdb
+        state: directory
+        owner: rethinkdb
+        group: rethinkdb
+        mode: '0755'
+
+    - name: Create rethinkdb log directory
+      file:
+        path: /var/log/rethinkdb
+        state: directory
+        owner: rethinkdb
+        group: rethinkdb
+        mode: '0755'
+
+    - name: Copy rethinkdb configuration
+      copy:
+        src: /etc/rethinkdb/default.conf.sample
+        dest: /etc/rethinkdb/instances.d/instance.conf
+        remote_src: yes
+
+    - name: Configure rethinkdb instance
+      replace:
+        path: /etc/rethinkdb/instances.d/instance.conf
+        regexp: "{{ item.org }}"
+        replace: "{{ item.rep }}"
+      loop:
+        - { org: '# runuser=rethinkdb', rep: 'runuser=rethinkdb' }
+        - { org: '# rungroup=rethinkdb', rep: 'rungroup=rethinkdb' }
+        - { org: '# pid-file=/var/run/rethinkdb/rethinkdb.pid', rep: 'pid-file=/var/run/rethinkdb/rethinkdb.pid' }
+        - { org: '# directory=/var/lib/rethinkdb/default', rep: 'directory=/var/lib/rethinkdb/default' }
+        - { org: '# log-file=/var/log/rethinkdb', rep: 'log-file=/var/log/rethinkdb/rethinkdb.log' }
+        - { org: '# bind=127.0.0.1', rep: 'bind=all' }
+        - { org: '# driver-port=28015', rep: 'driver-port=28015' }
+        - { org: '# cluster-port=29015', rep: 'cluster-port=29015' }
+        - { org: '# http-port=8080', rep: 'http-port=8080' }
+
+    - name: Create rethinkdb log file
+      file:
+        path: /var/log/rethinkdb/rethinkdb.log
+        state: touch
+        owner: rethinkdb
+        group: rethinkdb
+        mode: '0644'
+
+    - name: Set rethinkdb permissions
+      file:
+        path: "{{ item }}"
+        owner: rethinkdb
+        group: rethinkdb
+        recurse: yes
+      loop:
+        - /var/lib/rethinkdb
+        - /var/log/rethinkdb
+
+    - name: Enable rethinkdb service
+      systemd:
+        name: rethinkdb
+        enabled: yes
+        state: started
+
+    - name: Restart rethinkdb
+      service:
+        name: rethinkdb
+        state: restarted
+
+    - name: Create cloudstack directory
+      file:
+        path: /opt/cloudstack
+        state: directory
+        mode: '0755'
+
+    - name: Copy rethinkdb cleanup script
+      copy:
+        src: /usr/local/src/rethinkdb-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/cleanup.sh
+        mode: '0755'
+
+    - name: Add cleanup script to bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Restore ssh configuration
+      shell: |
+        sed -i 's/ForceCommand echo Please wait until installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
