@@ -1,0 +1,206 @@
+---
+- name: OpenSearch Setup Ubuntu 24
+  hosts: localhost
+  become: true
+
+  vars:
+    opensearch_version: "2.14.0"
+    opensearch_url: "https://artifacts.opensearch.org/releases/bundle/opensearch/{{ opensearch_version }}/opensearch-{{ opensearch_version }}-linux-x64.tar.gz"
+    dashboards_url: "https://artifacts.opensearch.org/releases/bundle/opensearch-dashboards/{{ opensearch_version }}/opensearch-dashboards-{{ opensearch_version }}-linux-x64.tar.gz"
+
+  tasks:
+
+    - name: Restarting SSH service
+      shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+
+    - name: Update apt packages
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - wget
+          - curl
+          - tar
+          - unzip
+          - vim
+          - net-tools
+          - apache2-utils
+          - openssl
+          - ca-certificates
+        state: present
+
+    - name: Disable swap immediately
+      command: swapoff -a
+
+    - name: Disable swap permanently
+      replace:
+        path: /etc/fstab
+        regexp: '^([^#].*?\sswap\s+sw\s+.*)$'
+        replace: '# \1'
+
+    - name: Set vm.max_map_count
+      lineinfile:
+        path: /etc/sysctl.conf
+        line: "vm.max_map_count=262144"
+
+    - name: Apply sysctl settings
+      command: sysctl -p
+
+    - name: Create OpenSearch group
+      group:
+        name: opensearch
+        state: present
+        system: yes
+
+    - name: Create OpenSearch user
+      user:
+        name: opensearch
+        group: opensearch
+        shell: /bin/bash
+        create_home: yes
+        system: yes
+
+    - name: Download OpenSearch
+      unarchive:
+        src: "{{ opensearch_url }}"
+        dest: /opt/
+        remote_src: yes
+
+    - name: Rename OpenSearch directory
+      command: mv /opt/opensearch-{{ opensearch_version }} /opt/opensearch
+      args:
+        creates: /opt/opensearch
+
+    - name: Configure OpenSearch
+      lineinfile:
+        path: /opt/opensearch/config/opensearch.yml
+        line: "{{ item }}"
+      loop:
+        - "network.host: 0.0.0.0"
+        - "http.port: 9200"
+        - "discovery.type: single-node"
+        - "plugins.security.disabled: false"
+
+    - name: Update JVM heap size
+      replace:
+        path: /opt/opensearch/config/jvm.options
+        regexp: "{{ item.old }}"
+        replace: "{{ item.new }}"
+      loop:
+        - { old: '-Xms1g', new: '-Xms2g' }
+        - { old: '-Xmx1g', new: '-Xmx2g' }
+
+    - name: Set ownership for OpenSearch
+      file:
+        path: /opt/opensearch
+        owner: opensearch
+        group: opensearch
+        recurse: yes
+
+    - name: Create OpenSearch systemd service
+      copy:
+        dest: /etc/systemd/system/opensearch.service
+        content: |
+          [Unit]
+          Description=OpenSearch
+          Documentation=https://opensearch.org/
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=opensearch
+          Group=opensearch
+          ExecStart=/opt/opensearch/bin/opensearch
+          Restart=on-failure
+          LimitNOFILE=65536
+          LimitNPROC=4096
+          TimeoutStopSec=20
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start OpenSearch
+      systemd:
+        name: opensearch
+        enabled: yes
+        state: started
+
+    - name: Download OpenSearch Dashboards
+      unarchive:
+        src: "{{ dashboards_url }}"
+        dest: /opt/
+        remote_src: yes
+
+    - name: Rename Dashboards directory
+      command: mv /opt/opensearch-dashboards-{{ opensearch_version }} /opt/opensearch-dashboards
+      args:
+        creates: /opt/opensearch-dashboards
+
+    - name: Configure OpenSearch Dashboards
+      lineinfile:
+        path: /opt/opensearch-dashboards/config/opensearch_dashboards.yml
+        line: "{{ item }}"
+      loop:
+        - 'server.host: "0.0.0.0"'
+        - 'server.port: 5601'
+        - 'opensearch.hosts: ["https://0.0.0.0:9200"]'
+        - 'opensearch.username: "admin"'
+        - 'opensearch.password: "admin"'
+        - 'opensearch.ssl.verificationMode: none'
+
+    - name: Set ownership for dashboards
+      file:
+        path: /opt/opensearch-dashboards
+        owner: opensearch
+        group: opensearch
+        recurse: yes
+
+    - name: Create OpenSearch Dashboards service
+      copy:
+        dest: /etc/systemd/system/opensearch-dashboards.service
+        content: |
+          [Unit]
+          Description=OpenSearch Dashboards
+          Documentation=https://opensearch.org/
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=opensearch
+          Group=opensearch
+          ExecStart=/opt/opensearch-dashboards/bin/opensearch-dashboards
+          Restart=on-failure
+
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Reload systemd again
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start OpenSearch Dashboards
+      systemd:
+        name: opensearch-dashboards
+        enabled: yes
+        state: started
+
+    - name: Open firewall ports
+      ufw:
+        rule: allow
+        port: "{{ item }}"
+      loop:
+        - "9200"
+        - "5601"
+
+    - name: Restart SSH service back
+      shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
