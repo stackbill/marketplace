@@ -1,0 +1,232 @@
+---
+- name: ApacheKafka Setup Ubuntu 24.04
+  hosts: localhost
+  become: true
+
+  tasks:
+
+    - name: Restarting sshd
+      shell: >
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g'
+        /etc/ssh/sshd_config && systemctl restart ssh
+
+    - name: Updating Packages
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Wait for apt lock to be released
+      shell: |
+        while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+          echo "Waiting for apt lock..."
+          sleep 10
+        done
+      changed_when: false
+
+    - name: Installing Java and Kafka Client
+      ansible.builtin.apt:
+        name:
+          - openjdk-17-jdk
+          - openjdk-17-jre-headless
+          - kcat
+        state: present
+        lock_timeout: 600
+
+    - name: Generate shell user password
+      shell: openssl rand -hex 24
+      register: userpassword
+
+    - name: Display password
+      debug:
+        var: userpassword.stdout
+
+    - name: Store shell user password
+      copy:
+        dest: /root/.shell_user_passwords
+        mode: "0600"
+        content: |
+          KAFKA_SHELL_LOGIN_USER = kafka
+          KAFKA_SHELL_LOGIN_USER_PASSWORD = {{ userpassword.stdout }}
+
+    - name: Create kafka user
+      ansible.builtin.user:
+        name: kafka
+        shell: /bin/bash
+        create_home: yes
+        home: /home/kafka
+        state: present
+        system: true
+
+    - name: Set kafka user password
+      shell: echo "kafka:{{ userpassword.stdout }}" | chpasswd
+
+    - name: Create Kafka data directory
+      ansible.builtin.file:
+        path: /var/lib/kafka
+        state: directory
+        owner: kafka
+        group: kafka
+        mode: "0755"
+
+    - name: Download Kafka package
+      ansible.builtin.get_url:
+        url: https://downloads.apache.org/kafka/3.9.2/kafka_2.12-3.9.2.tgz
+        dest: /tmp/kafka_2.12-3.9.2.tgz
+        mode: "0644"
+
+    - name: Extract Kafka package
+      ansible.builtin.unarchive:
+        src: /tmp/kafka_2.12-3.9.2.tgz
+        dest: /opt/
+        remote_src: yes
+
+    - name: Rename Kafka Directory
+      command: mv /opt/kafka_2.12-3.9.2 /opt/kafka
+      args:
+        creates: /opt/kafka
+
+    - name: Backup default Kafka configuration
+      command: mv /opt/kafka/config/server.properties /opt/kafka/config/server.properties-org
+      args:
+        creates: /opt/kafka/config/server.properties-org
+
+    - name: Copy Kafka configuration files
+      copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+      loop:
+        - { confsrc: '/usr/local/src/apachekafka-24-04/opt/kafka/config/server.properties', confdest: '/opt/kafka/config/' }
+        - { confsrc: '/usr/local/src/apachekafka-24-04/etc/systemd/system/zookeeper.service', confdest: '/etc/systemd/system/' }
+        - { confsrc: '/usr/local/src/apachekafka-24-04/etc/systemd/system/kafka.service', confdest: '/etc/systemd/system/' }
+
+    - name: Create SSL directory
+      file:
+        path: /opt/kafka/ssl
+        state: directory
+        mode: "0755"
+
+    - name: Kafka default user
+      shell: openssl rand -base64 45
+      register: kafkadefaultuser
+
+    - name: Kafka default password
+      shell: openssl rand -base64 45
+      register: kafkadefaultpassword
+
+    - name: Generate SSL password
+      shell: openssl rand -base64 12
+      register: sslpassword
+
+    - name: Store SSL password
+      copy:
+        dest: /opt/kafka/ssl/.keystore_password
+        mode: "0600"
+        content: |
+          KEYSTORE_PASSWORD={{ sslpassword.stdout }}
+
+    - name: Get hostname
+      command: hostname
+      register: gethostname
+
+    - name: Create SSL configuration
+      copy:
+        dest: /opt/kafka/ssl/details.config
+        content: |
+          [req]
+          distinguished_name = req_distinguished_name
+          req_extensions = req_ext
+          prompt = no
+
+          [req_distinguished_name]
+          CN = {{ gethostname.stdout }}
+
+          [req_ext]
+          subjectAltName = @alt_names
+
+          [alt_names]
+          DNS.1 = localhost
+          IP.1 = 127.0.0.1
+          IP.2 = {{ ansible_default_ipv4.address }}
+
+    - name: Generate certificates
+      shell: "{{ item }}"
+      loop:
+        - openssl req -new -newkey rsa:4096 -x509 -subj "/CN=Kafka MP-Apps" -days 3650 -keyout /opt/kafka/ssl/ca.key -out /opt/kafka/ssl/ca.crt -nodes
+        - openssl genrsa -out /opt/kafka/ssl/kafka.key 4096
+        - openssl req -new -key /opt/kafka/ssl/kafka.key -out /opt/kafka/ssl/tempcrt -config /opt/kafka/ssl/details.config
+        - openssl x509 -req -days 3650 -in /opt/kafka/ssl/tempcrt -CA /opt/kafka/ssl/ca.crt -CAkey /opt/kafka/ssl/ca.key -CAcreateserial -out /opt/kafka/ssl/kafka.crt -extensions req_ext -extfile /opt/kafka/ssl/details.config
+        - openssl pkcs12 -export -in /opt/kafka/ssl/kafka.crt -inkey /opt/kafka/ssl/kafka.key -certfile /opt/kafka/ssl/kafka.crt -out /opt/kafka/ssl/tempkeystore -passout pass:{{ sslpassword.stdout }}
+        - keytool -importkeystore -srckeystore /opt/kafka/ssl/tempkeystore -srcstoretype pkcs12 -destkeystore /opt/kafka/ssl/kafka.keystore.jks -deststoretype pkcs12 -srcstorepass {{ sslpassword.stdout }} -deststorepass {{ sslpassword.stdout }}
+        - keytool -keystore /opt/kafka/ssl/kafka.keystore.jks -alias CARoot -import -file /opt/kafka/ssl/ca.crt -storepass {{ sslpassword.stdout }} -keypass {{ sslpassword.stdout }} -noprompt
+        - keytool -keystore /opt/kafka/ssl/kafka.truststore.jks -alias CARoot -import -file /opt/kafka/ssl/ca.crt -storepass {{ sslpassword.stdout }} -keypass {{ sslpassword.stdout }} -noprompt
+
+    - name: Replace Kafka configuration placeholders
+      replace:
+        path: /opt/kafka/config/server.properties
+        regexp: "{{ item.search }}"
+        replace: "{{ item.replace }}"
+      loop:
+        - { search: 'KEYSTOREPASSWORD', replace: '{{ sslpassword.stdout }}' }
+        - { search: 'SERVERIPADDRESS', replace: '{{ ansible_default_ipv4.address }}' }
+        - { search: 'KAFKADEFAULTUSER', replace: '{{ kafkadefaultuser.stdout }}' }
+        - { search: 'KAFKADEFAULTPASSWORD', replace: '{{ kafkadefaultpassword.stdout }}' }
+
+    - name: Change ownership of Kafka directory
+      file:
+        path: /opt/kafka
+        recurse: yes
+        owner: kafka
+        group: kafka
+
+    - name: Reload systemd
+      systemd:
+        daemon_reload: yes
+
+    - name: Enable and start services
+      systemd:
+        name: "{{ item }}"
+        enabled: yes
+        state: started
+      loop:
+        - zookeeper
+        - kafka
+
+    - name: Configure Kafka SCRAM User
+      shell: >
+        /opt/kafka/bin/kafka-configs.sh
+        --bootstrap-server localhost:9092
+        --alter
+        --add-config "SCRAM-SHA-256=[password={{ kafkadefaultpassword.stdout }}]"
+        --entity-type users
+        --entity-name "{{ kafkadefaultuser.stdout }}"
+
+    - name: Remove temporary SSL files
+      file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /opt/kafka/ssl/details.config
+        - /opt/kafka/ssl/tempcrt
+        - /opt/kafka/ssl/tempkeystore
+
+    - name: Create CloudStack directory
+      file:
+        path: /opt/cloudstack
+        state: directory
+
+    - name: Copy cleanup script
+      copy:
+        src: /usr/local/src/apachekafka-24-04/opt/cloudstack/apachekafka-cleanup.sh
+        dest: /opt/cloudstack/apachekafka-cleanup.sh
+        mode: "0755"
+
+    - name: Add cleanup script to bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/apachekafka-cleanup.sh"
+        state: present
+
+    - name: Restore sshd configuration
+      shell: >
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g'
+        /etc/ssh/sshd_config && systemctl restart ssh

@@ -1,0 +1,82 @@
+- name: Webmin Setup
+  hosts: localhost
+  become: yes
+
+  tasks:
+    - name: Restarting ssh
+      shell: "sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config && systemctl restart ssh"
+
+    - name: Updating Packages
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Install curl
+      apt:
+        name: curl
+        state: present
+
+    - name: Install Webmin
+      shell: |
+        cd /tmp
+        curl -o webmin-setup-repo.sh https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh
+        printf 'y\n' | sh webmin-setup-repo.sh
+        apt update
+        apt install -y webmin --install-recommends
+
+    - name: Ensure Webmin service is running
+      service:
+        name: webmin
+        state: started
+        enabled: yes
+
+    - name: Getting the status of the service
+      shell: systemctl status webmin | grep 'since'
+      register: status
+
+    - debug:
+        var: status.stdout
+
+    - name: Generating webmin root password
+      shell: openssl rand -hex 24
+      register: rootpassword
+
+    - debug:
+        var: rootpassword.stdout
+
+    - name: Storing webmin password
+      copy:
+        dest: "/root/.webmin_root_password"
+        content: |
+          Webmin_user = root
+          Webmin_pass = "{{ rootpassword.stdout }}"
+
+    - name: Configuring webmin root password
+      shell: /usr/share/webmin/changepass.pl /etc/webmin root "{{ rootpassword.stdout }}"
+
+    - name: Installing postfix
+      apt:
+        name:
+          - postfix
+          - mailutils
+        state: latest
+
+    - name: Creating a directory for shell script
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory
+
+    - name: Copy files for shell script
+      copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+      with_items:
+        - { confsrc: '/usr/local/src/webmin-24-04/opt/cloudstack/cleanup.sh', confdest: '/opt/cloudstack/' }
+
+    - name: Adding a line for shell script
+      lineinfile:
+        path: /root/.bashrc
+        line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Restarting ssh
+      shell: "sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config && systemctl restart ssh"

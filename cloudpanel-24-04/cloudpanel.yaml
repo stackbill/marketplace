@@ -1,0 +1,62 @@
+---
+- name: CloudPanel Setup Ubuntu 24.04
+  hosts: localhost
+  become: true
+
+  tasks:
+
+    - name: Temporarily block SSH logins
+      shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+
+    - name: Update packages
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: dist
+        dpkg_options: 'force-confold,force-confdef'
+
+    - name: Install prerequisites
+      ansible.builtin.apt:
+        name:
+          - curl
+          - wget
+          - sudo
+        state: present
+
+    - name: Download CloudPanel installer
+      get_url:
+        url: https://installer.cloudpanel.io/ce/v2/install.sh
+        dest: /usr/local/src/install.sh
+        mode: '0755'
+
+    - name: Install CloudPanel
+      shell: |
+        DB_ENGINE=MYSQL_8.0 bash /usr/local/src/install.sh
+      register: cloudout
+
+    - debug:
+        var: cloudout.stdout_lines
+
+    - name: Create cloudstack directory
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory
+        mode: '0755'
+
+    - name: Copy cleanup script
+      copy:
+        src: /usr/local/src/cloudpanel-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/cleanup.sh
+        mode: '0755'
+
+    - name: Add cleanup script to bashrc
+      lineinfile:
+        path: /root/.bashrc
+        line: "/opt/cloudstack/cleanup.sh"
+        state: present
+
+    - name: Restore SSH access
+      shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
