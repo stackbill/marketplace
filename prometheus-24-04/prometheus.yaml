@@ -1,0 +1,155 @@
+- name: Prometheus Setup (Ubuntu 24.04)
+  hosts: localhost
+  become: true
+  tasks:
+    - name: Temporarily restrict SSH access during installation
+      ansible.builtin.shell: |
+        sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g' /etc/ssh/sshd_config
+        systemctl restart ssh
+      changed_when: true
+
+    - name: Updating Packages
+      ansible.builtin.apt:
+        update_cache: yes
+
+    - name: Creating a group for Prometheus project
+      ansible.builtin.group:
+        name: prometheus
+        state: present
+        system: yes
+
+    - name: Creating a user for Prometheus project
+      ansible.builtin.user:
+        name: prometheus
+        shell: /sbin/nologin
+        groups: prometheus
+        create_home: no
+        system: yes
+
+    - name: Creating a user for node_exporter
+      ansible.builtin.user:
+        name: node_exporter
+        shell: /bin/false
+        create_home: no
+        system: yes
+
+    - name: Creating prometheus data and config directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "prometheus"
+        group: "prometheus"         
+      loop:
+        - /etc/prometheus
+        - /var/lib/prometheus
+
+    - name: Download and extract prometheus files
+      ansible.builtin.unarchive:
+        src: "{{ item }}"
+        dest: /usr/local/src/
+        remote_src: yes
+      loop:
+        - https://github.com/prometheus/node_exporter/releases/download/v1.8.0/node_exporter-1.8.0.linux-amd64.tar.gz
+        - https://github.com/prometheus/prometheus/releases/download/v2.51.0/prometheus-2.51.0.linux-amd64.tar.gz
+
+    - name: Copy Prometheus and Node Exporter binaries and configs
+      ansible.builtin.copy:
+        src: "{{ item.confsrc }}"
+        dest: "{{ item.confdest }}"
+        remote_src: yes
+      loop:
+        - { confsrc: '/usr/local/src/prometheus-2.51.0.linux-amd64/prometheus', confdest: '/usr/local/bin/' }
+        - { confsrc: '/usr/local/src/prometheus-2.51.0.linux-amd64/promtool', confdest: '/usr/local/bin/' }
+        - { confsrc: '/usr/local/src/node_exporter-1.8.0.linux-amd64/node_exporter', confdest: '/usr/local/bin/' }
+        - { confsrc: '/usr/local/src/prometheus-2.51.0.linux-amd64/consoles', confdest: '/etc/prometheus/' }
+        - { confsrc: '/usr/local/src/prometheus-2.51.0.linux-amd64/console_libraries', confdest: '/etc/prometheus/' }
+        - { confsrc: '/usr/local/src/prometheus-24-04/etc/prometheus/configuration.yaml', confdest: '/etc/prometheus/' }
+        - { confsrc: '/usr/local/src/prometheus-24-04/etc/systemd/system/prometheus.service', confdest: '/etc/systemd/system/' }
+        - { confsrc: '/usr/local/src/prometheus-24-04/etc/systemd/system/node_exporter.service', confdest: '/etc/systemd/system/' }
+
+    - name: Changing permission of prometheus binaries
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: "prometheus"
+        group: "prometheus"
+        mode: '0755'
+      loop:
+        - /usr/local/bin/prometheus
+        - /usr/local/bin/promtool
+
+    - name: Changing permission of node_exporter binary
+      ansible.builtin.file:
+        path: /usr/local/bin/node_exporter
+        owner: "node_exporter"
+        group: "prometheus"
+        mode: '0755'
+
+    - name: Checking version
+      ansible.builtin.command: /usr/local/bin/prometheus --version
+      register: pro_version
+      changed_when: false
+
+    - name: Output Prometheus Version
+      ansible.builtin.debug:
+        var: pro_version.stdout_lines
+
+    - name: Change permission & ownership of directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        recurse: yes
+        owner: prometheus
+        group: prometheus
+      loop:
+        - /etc/prometheus/consoles
+        - /etc/prometheus/console_libraries
+        - /var/lib/prometheus
+
+    - name: Reload Systemd Daemon
+      ansible.builtin.systemd:
+        daemon_reload: true
+
+    - name: Enable and start prometheus and node_exporter
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+        state: started
+        enabled: true
+      loop:
+        - prometheus
+        - node_exporter
+
+    - name: Gathering status of services
+      ansible.builtin.systemd:
+        name: "{{ item }}"
+      register: service_status
+      loop:
+        - prometheus
+        - node_exporter
+
+    - name: Output Service Statuses
+      ansible.builtin.debug:
+        msg: "Service {{ item.item }} status is {{ item.status.ActiveState }}"
+      loop: "{{ service_status.results }}"
+
+    - name: Creating a directory for cleanup shell script
+      ansible.builtin.file:
+        path: /opt/cloudstack
+        state: directory         
+        
+    - name: Copy files for cleanup shell script
+      ansible.builtin.copy:
+        src: /usr/local/src/prometheus-24-04/opt/cloudstack/cleanup.sh
+        dest: /opt/cloudstack/
+        remote_src: yes
+
+    - name: Adding execution line to root .bashrc
+      ansible.builtin.lineinfile:
+        path: /root/.bashrc
+        line: "chmod +x /opt/cloudstack/cleanup.sh && /opt/cloudstack/cleanup.sh"
+        state: present    
+      
+    - name: Restore original SSH configuration
+      ansible.builtin.shell: |
+        sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g' /etc/ssh/sshd_config
+        systemctl restart ssh
+      changed_when: true
