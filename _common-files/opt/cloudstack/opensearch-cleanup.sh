@@ -27,8 +27,6 @@ echo Access the Opensearch Dashboard using https://$\IPADDRESS:5601
 #Cleanup script
 rm -rf /usr/local/src/
 mkdir -p /usr/local/src/
-rm -rf /var/lib/cloud/instances/*
-rm -rf /var/lib/cloud/data/*
 find /var/log -mtime -1 -type f -exec truncate -s 0 {} \; >/dev/null 2>&1
 rm -rf /var/log/*.gz /var/log/*.[0-9] /var/log/*-????????
 cat /dev/null > /var/log/lastlog; cat /dev/null > /var/log/wtmp

@@ -14,28 +14,24 @@ echo
 echo -e "${RED}This message will be removed in the next login!${NC}"
 echo
 echo
-echo -e "${RED}Postgres user_password${NC}"
+echo -e "${RED}Refer to the MySQL root password${NC}"
 echo
-cat /root/.postgresql_user_passwords
+cat /root/.mysql_root_password
 echo
-echo -e "${RED}Django home directory "/home/django/django_project/django_project/"${NC}"
+echo -e "${RED}Refer to the Zabbix Database Credentials${NC}"
 echo
-echo -e "${RED}Django database_passwords${NC}"
+cat /root/.zabbix_database_credentials
 echo
-cat /root/.postgresql_passwords
+echo -e "${RED}Refer to the Zabbix Admin Panel Credentials${NC}"
 echo
-echo -e "${RED}Django shell_user_passwords${NC}"
-echo
-cat /root/.shell_user_passwords
-echo
-echo -e "${RED}Django adminpanel_passwords${NC}"
-echo
-cat /root/.adminpanel_passwords
+cat /root/.zabbix_admin_credentials
 echo
 
 #Cleanup script
 rm -rf /usr/local/src/
 mkdir -p /usr/local/src/
+rm -rf /var/lib/cloud/instances/*
+rm -rf /var/lib/cloud/data/*
 find /var/log -mtime -1 -type f -exec truncate -s 0 {} \; >/dev/null 2>&1
 rm -rf /var/log/*.gz /var/log/*.[0-9] /var/log/*-????????
 cat /dev/null > /var/log/lastlog; cat /dev/null > /var/log/wtmp
