@@ -1,0 +1,49 @@
+#!/bin/bash
+
+RED='\033[1;31m'
+NC='\033[0m'
+
+echo -e "${RED}
+################################################################################################################
+#                              Your MarketPlace App has been deployed successfully!                            #
+#                                 Credentials are stored under /root/                                         #
+################################################################################################################
+${NC}"
+
+echo
+echo -e "${RED}This message will be removed in the next login!${NC}"
+echo
+echo
+echo -e "${RED}Refer to the below MinIO credentials${NC}"
+echo
+cat /root/.minio_credentials
+echo
+
+# Cleanup script
+
+rm -rf /usr/local/src/
+
+mkdir -p /usr/local/src/
+
+find /var/log -mtime -1 -type f -exec truncate -s 0 {} \; >/dev/null 2>&1
+
+rm -rf /var/log/*.gz
+rm -rf /var/log/*.[0-9]
+rm -rf /var/log/*-???????? 
+
+cat /dev/null > /var/log/lastlog
+cat /dev/null > /var/log/wtmp
+
+apt-get -y autoremove >/dev/null 2>&1
+apt-get -y autoclean >/dev/null 2>&1
+
+history -c
+
+cat /dev/null > /root/.bash_history
+
+unset HISTFILE
+
+rm -rf /root/.bashrc
+cp /etc/skel/.bashrc /root
+
+rm -rf /opt/cloudstack

@@ -1,0 +1,197 @@
+---
+- name: MinIO Standalone Setup Ubuntu 24
+  hosts: localhost
+  become: yes
+  gather_facts: yes
+
+  tasks:
+
+      - name: Restrict SSH access during installation
+        shell: >
+          sed -i 's/#Match User anoncvs/ForceCommand echo Please wait until the installation is completed..../g'
+          /etc/ssh/sshd_config &&
+          systemctl restart ssh
+
+      - name: Updating Packages
+        ansible.builtin.apt:
+          update_cache: yes
+
+      - name: Installing required packages
+        ansible.builtin.apt:
+          name:
+            - wget
+            - curl
+            - ca-certificates
+            - openssl
+          state: present
+
+      - name: Downloading MinIO binary
+        ansible.builtin.get_url:
+          url: https://dl.min.io/server/minio/release/linux-amd64/minio
+          dest: /usr/local/bin/minio
+          mode: '0755'
+          owner: root
+          group: root
+
+      - name: Creating MinIO system user
+        ansible.builtin.user:
+          name: minio
+          system: yes
+          shell: /usr/sbin/nologin
+          home: /data/minio
+          create_home: no
+          state: present
+
+      - name: Creating MinIO data directory
+        ansible.builtin.file:
+          path: /data/minio
+          state: directory
+          owner: minio
+          group: minio
+          mode: '0750'
+
+      - name: Creating MinIO configuration directory
+        ansible.builtin.file:
+          path: /etc/minio
+          state: directory
+          owner: minio
+          group: minio
+          mode: '0750'
+
+      - name: Generating MinIO root password
+        shell: openssl rand -base64 32
+        register: minio_root_password
+        no_log: true
+
+      - name: Store MinIO credentials
+        copy:
+          dest: "/root/.minio_credentials"
+          owner: root
+          group: root
+          mode: '0600'
+          content: |
+            MinIO Console: http://SERVER-IP:9001
+            MinIO API: http://SERVER-IP:9000
+
+            MinIO Root User: admin
+            MinIO Root Password: {{ minio_root_password.stdout }}
+
+      - name: Creating MinIO environment configuration
+        copy:
+          dest: /etc/default/minio
+          owner: root
+          group: minio
+          mode: '0640'
+          content: |
+            MINIO_ROOT_USER=admin
+            MINIO_ROOT_PASSWORD={{ minio_root_password.stdout }}
+
+            MINIO_VOLUMES="/data/minio"
+
+            MINIO_OPTS="-C /etc/minio --address :9000 --console-address :9001"
+
+      - name: Creating MinIO systemd service
+        copy:
+          dest: /etc/systemd/system/minio.service
+          owner: root
+          group: root
+          mode: '0644'
+          content: |
+            [Unit]
+            Description=MinIO
+            Documentation=https://docs.min.io
+            Wants=network-online.target
+            After=network-online.target
+            AssertFileIsExecutable=/usr/local/bin/minio
+            AssertFileNotEmpty=/etc/default/minio
+
+            [Service]
+            Type=notify
+
+            WorkingDirectory=/usr/local/
+
+            User=minio
+            Group=minio
+            ProtectProc=invisible
+
+            EnvironmentFile=/etc/default/minio
+            ExecStart=/usr/local/bin/minio server $MINIO_OPTS $MINIO_VOLUMES
+
+            Restart=always
+
+            LimitNOFILE=1048576
+            TasksMax=infinity
+            TimeoutSec=infinity
+            OOMScoreAdjust=-1000
+            SendSIGKILL=no
+
+            [Install]
+            WantedBy=multi-user.target
+
+      - name: Setting MinIO directory ownership
+        ansible.builtin.file:
+          path: "{{ item }}"
+          owner: minio
+          group: minio
+          recurse: yes
+        loop:
+          - /data/minio
+          - /etc/minio
+
+      - name: Reloading systemd
+        ansible.builtin.systemd:
+          daemon_reload: yes
+
+      - name: Starting MinIO service
+        ansible.builtin.service:
+          name: minio
+          state: started
+          enabled: yes
+
+      - name: Waiting for MinIO API
+        ansible.builtin.wait_for:
+          port: 9000
+          host: 127.0.0.1
+          delay: 3
+          timeout: 60
+
+      - name: Getting MinIO service status
+        shell: systemctl status minio | grep 'since'
+        register: status
+        changed_when: false
+
+      - debug:
+          var: status.stdout
+
+      - name: Verify MinIO service
+        shell: systemctl is-active minio
+        register: minio_status
+        changed_when: false
+        failed_when: minio_status.stdout != "active"
+
+      - debug:
+          msg: "MinIO service is running successfully."
+
+      - name: Creating directory for cleanup script
+        ansible.builtin.file:
+          path: /usr/local/src/minio-24-04/opt/cloudstack/
+          state: directory
+
+      - name: Copying cleanup script
+        copy:
+          src: /usr/local/src/minio-24-04/opt/cloudstack/minio-cleanup.sh
+          dest: /usr/local/src/minio-24-04/opt/cloudstack/minio-cleanup.sh
+          remote_src: yes
+          mode: '0755'
+
+      - name: Adding cleanup shell script in bashrc
+        lineinfile:
+          path: /root/.bashrc
+          line: "chmod +x /usr/local/src/minio-24-04/opt/cloudstack/minio-cleanup.sh && /usr/local/src/minio-24-04/opt/cloudstack/minio-cleanup.sh"
+          state: present
+
+      - name: Restore SSH access after installation
+        shell: >
+          sed -i 's/ForceCommand echo Please wait until the installation is completed..../#Match User anoncvs/g'
+          /etc/ssh/sshd_config &&
+          systemctl restart ssh
